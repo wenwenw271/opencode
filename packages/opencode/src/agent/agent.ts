@@ -1,3 +1,24 @@
+/**
+ * Agent 模块：管理各类 AI 代理的配置、权限与运行时信息。
+ * 负责内置代理定义、用户配置合并、默认代理选择以及基于描述生成新代理。
+ *
+ * ## 业务流程概览
+ *
+ * 1. **状态初始化 (state)**
+ *    - 读取 Config、Skill 目录，构造默认权限 (defaults) 与用户权限 (user)。
+ *    - 初始化内置代理表：build / plan / general / explore / compaction / title / summary。
+ *    - 遍历 cfg.agent：可 disable 删除、覆盖已有字段、或追加新代理（native: false）。
+ *    - 对未显式拒绝 Truncate.GLOB 的代理，合并允许该目录的权限。
+ *
+ * 2. **查询接口**
+ *    - get(name)：按名称取单个代理。
+ *    - list()：列出所有代理，默认/ build 排前面。
+ *    - defaultAgent()：解析默认主代理（cfg.default_agent 或首个非 subagent 且非 hidden 的主代理）。
+ *
+ * 3. **生成新代理 (generate)**
+ *    - 用 input.description + 已有代理名黑名单，调用 LLM 生成 identifier / whenToUse / systemPrompt。
+ *    - 使用 generate.txt 系统提示；OpenAI OAuth 时走 streamObject 并注入 SystemPrompt.instructions()。
+ */
 import { Config } from "../config/config"
 import z from "zod"
 import { Provider } from "../provider/provider"
@@ -21,6 +42,7 @@ import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
 
 export namespace Agent {
+  /** 代理元信息的 Zod 模式：名称、描述、模式、权限、模型等 */
   export const Info = z
     .object({
       name: z.string(),
@@ -48,11 +70,16 @@ export namespace Agent {
     })
   export type Info = z.infer<typeof Info>
 
+  /**
+   * 代理注册表状态：懒加载单例，合并默认权限、内置代理与用户配置。
+   * 内置代理：build / plan / general / explore / compaction / title / summary。
+   */
   const state = Instance.state(async () => {
     const cfg = await Config.get()
 
     const skillDirs = await Skill.dirs()
     const whitelistedDirs = [Truncate.GLOB, ...skillDirs.map((dir) => path.join(dir, "*"))]
+    /** 默认权限：多数操作 allow，敏感项（doom_loop、.env、question/plan）按需 ask/deny */
     const defaults = PermissionNext.fromConfig({
       "*": "allow",
       doom_loop: "ask",
@@ -73,7 +100,9 @@ export namespace Agent {
     })
     const user = PermissionNext.fromConfig(cfg.permission ?? {})
 
+    /** 内置代理定义：先写死默认项，再被 cfg.agent 覆盖 */
     const result: Record<string, Info> = {
+      /** 默认主代理：可执行工具，允许 question / plan_enter */
       build: {
         name: "build",
         description: "The default agent. Executes tools based on configured permissions.",
@@ -89,6 +118,7 @@ export namespace Agent {
         mode: "primary",
         native: true,
       },
+      /** 计划模式：禁止编辑类工具，仅允许编辑计划相关路径 */
       plan: {
         name: "plan",
         description: "Plan mode. Disallows all edit tools.",
@@ -112,9 +142,10 @@ export namespace Agent {
         mode: "primary",
         native: true,
       },
+      /** 通用子代理：多步任务与并行执行，禁用 todoread/todowrite */
       general: {
         name: "general",
-        description: `General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.`,
+        description: `General-purpose agent for researching complex questions and executing multiple units of work in parallel.`,
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -127,6 +158,7 @@ export namespace Agent {
         mode: "subagent",
         native: true,
       },
+      /** 探索子代理：只读 + 搜索/列表/读文件，用于快速检索代码库 */
       explore: {
         name: "explore",
         permission: PermissionNext.merge(
@@ -154,6 +186,7 @@ export namespace Agent {
         mode: "subagent",
         native: true,
       },
+      /** 压缩主代理：内部用，隐藏，仅 prompt 无工具 */
       compaction: {
         name: "compaction",
         mode: "primary",
@@ -169,6 +202,7 @@ export namespace Agent {
         ),
         options: {},
       },
+      /** 标题主代理：内部用，隐藏，生成会话标题 */
       title: {
         name: "title",
         mode: "primary",
@@ -185,6 +219,7 @@ export namespace Agent {
         ),
         prompt: PROMPT_TITLE,
       },
+      /** 摘要主代理：内部用，隐藏，生成会话摘要 */
       summary: {
         name: "summary",
         mode: "primary",
@@ -202,6 +237,7 @@ export namespace Agent {
       },
     }
 
+    /** 用户配置覆盖：cfg.agent 可禁用、覆盖内置或追加新代理 */
     for (const [key, value] of Object.entries(cfg.agent ?? {})) {
       if (value.disable) {
         delete result[key]
@@ -231,7 +267,7 @@ export namespace Agent {
       item.permission = PermissionNext.merge(item.permission, PermissionNext.fromConfig(value.permission ?? {}))
     }
 
-    // Ensure Truncate.GLOB is allowed unless explicitly configured
+    /** 未显式拒绝时，保证 Truncate.GLOB 目录被允许（截断工具所需） */
     for (const name in result) {
       const agent = result[name]
       const explicit = agent.permission.some((r) => {
@@ -250,10 +286,12 @@ export namespace Agent {
     return result
   })
 
+  /** 按名称取单个代理信息，不存在则为 undefined */
   export async function get(agent: string) {
     return state().then((x) => x[agent])
   }
 
+  /** 列出所有代理，按「是否为默认/ build」降序，便于 UI 把默认放最前 */
   export async function list() {
     const cfg = await Config.get()
     return pipe(
@@ -263,6 +301,7 @@ export namespace Agent {
     )
   }
 
+  /** 解析默认主代理名：cfg.default_agent 优先，否则取第一个非 subagent 且非 hidden 的主代理 */
   export async function defaultAgent() {
     const cfg = await Config.get()
     const agents = await state()
@@ -280,6 +319,10 @@ export namespace Agent {
     return primaryVisible.name
   }
 
+  /**
+   * 根据自然语言描述生成新代理配置（identifier / whenToUse / systemPrompt）。
+   * 使用 generate.txt 系统提示 + 已有代理名黑名单；OAuth OpenAI 时走 streamObject + 指令注入。
+   */
   export async function generate(input: { description: string; model?: { providerID: string; modelID: string } }) {
     const cfg = await Config.get()
     const defaultModel = input.model ?? (await Provider.defaultModel())
@@ -290,7 +333,7 @@ export namespace Agent {
     await Plugin.trigger("experimental.chat.system.transform", { model }, { system })
     const existing = await list()
 
-    const params = {
+    const params: Parameters<typeof generateObject>[0] = {
       experimental_telemetry: {
         isEnabled: cfg.experimental?.openTelemetry,
         metadata: {
@@ -316,7 +359,7 @@ export namespace Agent {
         whenToUse: z.string(),
         systemPrompt: z.string(),
       }),
-    } satisfies Parameters<typeof generateObject>[0]
+    }
 
     if (defaultModel.providerID === "openai" && (await Auth.get(defaultModel.providerID))?.type === "oauth") {
       const result = streamObject({

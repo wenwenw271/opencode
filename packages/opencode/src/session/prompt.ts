@@ -46,9 +46,15 @@ import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
 
+/**
+ * SessionPrompt：会话提示与循环驱动。
+ * 负责 prompt/command/shell 入口、用户消息创建、loop 会话循环（subtask/compaction/正常 LLM）、
+ * 工具解析（ToolRegistry + MCP）、计划模式提醒、标题生成等。
+ */
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
 
+/** 结构化输出工具的说明与系统提示，用于 JSON schema 模式 */
 const STRUCTURED_OUTPUT_DESCRIPTION = `Use this tool to return your final response in the requested structured format.
 
 IMPORTANT:
@@ -62,6 +68,7 @@ const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `IMPORTANT: The user has requested struc
 export namespace SessionPrompt {
   const log = Log.create({ service: "session.prompt" })
 
+  /** 每会话的 AbortController + 等待 loop 结束的 callbacks，Instance 切换时统一 abort */
   const state = Instance.state(
     () => {
       const data: Record<
@@ -83,11 +90,13 @@ export namespace SessionPrompt {
     },
   )
 
+  /** 若该会话正在 loop 中则抛 Session.BusyError，用于写操作前检查 */
   export function assertNotBusy(sessionID: string) {
     const match = state()[sessionID]
     if (match) throw new Session.BusyError(sessionID)
   }
 
+  /** 发送用户消息的入参：sessionID、可选 agent/model/format、parts（文本/文件/agent/subtask）等 */
   export const PromptInput = z.object({
     sessionID: Identifier.schema("session"),
     messageID: Identifier.schema("message").optional(),
@@ -155,6 +164,7 @@ export namespace SessionPrompt {
   })
   export type PromptInput = z.infer<typeof PromptInput>
 
+  /** 创建用户消息并进入 loop；noReply 时只写用户消息不触发 AI */
   export const prompt = fn(PromptInput, async (input) => {
     const session = await Session.get(input.sessionID)
     await SessionRevert.cleanup(session)
@@ -162,8 +172,7 @@ export namespace SessionPrompt {
     const message = await createUserMessage(input)
     await Session.touch(input.sessionID)
 
-    // this is backwards compatibility for allowing `tools` to be specified when
-    // prompting
+    /** 兼容：prompt 时传入的 tools 会合并进 session 权限 */
     const permissions: PermissionNext.Ruleset = []
     for (const [tool, enabled] of Object.entries(input.tools ?? {})) {
       permissions.push({
@@ -184,6 +193,7 @@ export namespace SessionPrompt {
     return loop({ sessionID: input.sessionID })
   })
 
+  /** 将模板中的 @file 引用展开为 file/agent part；目录为 file+mime directory，缺失路径时尝试当 agent 名 */
   export async function resolvePromptParts(template: string): Promise<PromptInput["parts"]> {
     const parts: PromptInput["parts"] = [
       {
@@ -235,6 +245,7 @@ export namespace SessionPrompt {
     return parts
   }
 
+  /** 为该会话分配 AbortController，若已有则返回 undefined（调用方会排队等 callback） */
   function start(sessionID: string) {
     const s = state()
     if (s[sessionID]) return
@@ -246,6 +257,7 @@ export namespace SessionPrompt {
     return controller.signal
   }
 
+  /** 复用已有会话的 abort signal（如 shell 执行后恢复 loop） */
   function resume(sessionID: string) {
     const s = state()
     if (!s[sessionID]) return
@@ -253,6 +265,7 @@ export namespace SessionPrompt {
     return s[sessionID].abort.signal
   }
 
+  /** 取消该会话的 loop（abort + 删 state + 置 idle） */
   export function cancel(sessionID: string) {
     log.info("cancel", { sessionID })
     const s = state()
@@ -271,6 +284,10 @@ export namespace SessionPrompt {
     sessionID: Identifier.schema("session"),
     resume_existing: z.boolean().optional(),
   })
+  /**
+   * 会话循环：取 lastUser/lastAssistant，处理 subtask、compaction、overflow，再正常走 LLM+工具。
+   * 退出时 resolve 等待中的 callbacks 并返回最后一条助手消息。
+   */
   export const loop = fn(LoopInput, async (input) => {
     const { sessionID, resume_existing } = input
 
@@ -284,9 +301,7 @@ export namespace SessionPrompt {
 
     using _ = defer(() => cancel(sessionID))
 
-    // Structured output state
-    // Note: On session resumption, state is reset but outputFormat is preserved
-    // on the user message and will be retrieved from lastUser below
+    /** 结构化输出结果，由 StructuredOutput 工具写入；恢复会话时从 lastUser.format 仍可拿到 schema */
     let structuredOutput: unknown | undefined
 
     let step = 0
@@ -295,8 +310,10 @@ export namespace SessionPrompt {
       SessionStatus.set(sessionID, { type: "busy" })
       log.info("loop", { step, sessionID })
       if (abort.aborted) break
+      // 按 sessionID 拉取该会话的消息，并做压缩过滤，得到「当前有效窗口」内的消息列表，按时间从旧到新。
       let msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
 
+      /** 从后往前找：最后一条用户消息、最后一条助手消息、最后一条已结束的助手消息；并收集未处理的 compaction/subtask */
       let lastUser: MessageV2.User | undefined
       let lastAssistant: MessageV2.Assistant | undefined
       let lastFinished: MessageV2.Assistant | undefined
@@ -315,6 +332,7 @@ export namespace SessionPrompt {
       }
 
       if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
+      /** 已有助手回复且非 tool-calls/unknown，且在该用户消息之后，则本轮不再生成，退出 */
       if (
         lastAssistant?.finish &&
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
@@ -347,8 +365,7 @@ export namespace SessionPrompt {
       })
       const task = tasks.pop()
 
-      // pending subtask
-      // TODO: centralize "invoke tool" logic
+      /** 待执行的子任务：创建 Task 工具 part，TaskTool.execute 内部会再调 SessionPrompt.prompt */
       if (task?.type === "subtask") {
         const taskTool = await TaskTool.init()
         const taskModel = task.model ? await Provider.getModel(task.model.providerID, task.model.modelID) : model
@@ -525,7 +542,7 @@ export namespace SessionPrompt {
         continue
       }
 
-      // pending compaction
+      /** 待执行的压缩任务：SessionCompaction.process 总结历史并写回 */
       if (task?.type === "compaction") {
         const result = await SessionCompaction.process({
           messages: msgs,
@@ -539,7 +556,7 @@ export namespace SessionPrompt {
         continue
       }
 
-      // context overflow, needs compaction
+      /** 上一轮 token 超限则插入自动压缩任务，下一轮处理 */
       if (
         lastFinished &&
         lastFinished.summary !== true &&
@@ -554,16 +571,18 @@ export namespace SessionPrompt {
         continue
       }
 
-      // normal processing
+      /** 正常分支：取 agent、插入 plan/build 提醒、创建 processor、解析工具、调 LLM */
       const agent = await Agent.get(lastUser.agent)
       const maxSteps = agent.steps ?? Infinity
       const isLastStep = step >= maxSteps
+      // 插入提示词
       msgs = await insertReminders({
         messages: msgs,
         agent,
         session,
       })
 
+      // 调用LLM能力开始处理用户问题
       const processor = SessionProcessor.create({
         assistantMessage: (await Session.updateMessage({
           id: Identifier.ascending("message"),
@@ -596,7 +615,6 @@ export namespace SessionPrompt {
       })
       using _ = defer(() => InstructionPrompt.clear(processor.message.id))
 
-      // Check if user explicitly invoked an agent via @ in this turn
       const lastUserMsg = msgs.findLast((m) => m.info.role === "user")
       const bypassAgentCheck = lastUserMsg?.parts.some((p) => p.type === "agent") ?? false
 
@@ -610,7 +628,7 @@ export namespace SessionPrompt {
         messages: msgs,
       })
 
-      // Inject StructuredOutput tool if JSON schema mode enabled
+      /** JSON schema 模式时注入 StructuredOutput 工具，回调写入 structuredOutput */
       if (lastUser.format?.type === "json_schema") {
         tools["StructuredOutput"] = createStructuredOutputTool({
           schema: lastUser.format.schema,
@@ -627,7 +645,7 @@ export namespace SessionPrompt {
         })
       }
 
-      // Ephemerally wrap queued user messages with a reminder to stay on track
+      /** 多步时给「未回复的用户消息」包一层 system-reminder，提醒模型处理 */
       if (step > 1 && lastFinished) {
         for (const msg of msgs) {
           if (msg.info.role !== "user" || msg.info.id <= lastFinished.id) continue
@@ -648,7 +666,6 @@ export namespace SessionPrompt {
 
       await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
-      // Build system prompt, adding structured output instruction if needed
       const system = [...(await SystemPrompt.environment(model)), ...(await InstructionPrompt.system())]
       const format = lastUser.format ?? { type: "text" }
       if (format.type === "json_schema") {
@@ -677,8 +694,6 @@ export namespace SessionPrompt {
         toolChoice: format.type === "json_schema" ? "required" : undefined,
       })
 
-      // If structured output was captured, save it and exit immediately
-      // This takes priority because the StructuredOutput tool was called successfully
       if (structuredOutput !== undefined) {
         processor.message.structured = structuredOutput
         processor.message.finish = processor.message.finish ?? "stop"
@@ -686,12 +701,10 @@ export namespace SessionPrompt {
         break
       }
 
-      // Check if model finished (finish reason is not "tool-calls" or "unknown")
       const modelFinished = processor.message.finish && !["tool-calls", "unknown"].includes(processor.message.finish)
 
       if (modelFinished && !processor.message.error) {
         if (format.type === "json_schema") {
-          // Model stopped without calling StructuredOutput tool
           processor.message.error = new MessageV2.StructuredOutputError({
             message: "Model did not produce structured output",
             retries: 0,
@@ -714,6 +727,7 @@ export namespace SessionPrompt {
       continue
     }
     SessionCompaction.prune({ sessionID })
+    /** 用最后一条助手消息 resolve 排队中的 callbacks，并返回 */
     for await (const item of MessageV2.stream(sessionID)) {
       if (item.info.role === "user") continue
       const queued = state()[sessionID]?.callbacks ?? []
@@ -725,6 +739,7 @@ export namespace SessionPrompt {
     throw new Error("Impossible")
   })
 
+  /** 从会话中取最后一条用户消息的 model，没有则用 Provider.defaultModel() */
   async function lastModel(sessionID: string) {
     for await (const item of MessageV2.stream(sessionID)) {
       if (item.info.role === "user" && item.info.model) return item.info.model
@@ -732,7 +747,7 @@ export namespace SessionPrompt {
     return Provider.defaultModel()
   }
 
-  /** @internal Exported for testing */
+  /** 按 agent + session 权限解析 ToolRegistry 与 MCP 工具，包装 execute 与 ctx.ask；@internal 供测试 */
   export async function resolveTools(input: {
     agent: Agent.Info
     model: Provider.Model
@@ -745,6 +760,7 @@ export namespace SessionPrompt {
     using _ = log.time("resolveTools")
     const tools: Record<string, AITool> = {}
 
+    /** 工具执行的通用上下文：sessionID、messageID、callID、ask、metadata 等 */
     const context = (args: any, options: ToolCallOptions): Tool.Context => ({
       sessionID: input.session.id,
       abort: options.abortSignal!,
@@ -833,7 +849,6 @@ export namespace SessionPrompt {
 
       const transformed = ProviderTransform.schema(input.model, asSchema(item.inputSchema).jsonSchema)
       item.inputSchema = jsonSchema(transformed)
-      // Wrap execute to add plugin hooks and format output
       item.execute = async (args, opts) => {
         const ctx = context(args, opts)
 
@@ -923,7 +938,7 @@ export namespace SessionPrompt {
     return tools
   }
 
-  /** @internal Exported for testing */
+  /** 构造 StructuredOutput 工具，execute 时调用 onSuccess 存结果；@internal 供测试 */
   export function createStructuredOutputTool(input: {
     schema: Record<string, any>
     onSuccess: (output: unknown) => void
@@ -953,6 +968,7 @@ export namespace SessionPrompt {
     })
   }
 
+  /** 构造并持久化用户消息：解析 agent/model/variant，处理 parts（file/MCP/agent/文本），Session.updateMessage/updatePart */
   async function createUserMessage(input: PromptInput) {
     const agent = await Agent.get(input.agent ?? (await Agent.defaultAgent()))
 
@@ -988,7 +1004,7 @@ export namespace SessionPrompt {
     const parts = await Promise.all(
       input.parts.map(async (part): Promise<Draft<MessageV2.Part>[]> => {
         if (part.type === "file") {
-          // before checking the protocol we check if this is an mcp resource because it needs special handling
+          /** MCP 资源先拉取内容再转为 text/file parts */
           if (part.source?.type === "resource") {
             const { clientName, uri } = part.source
             log.info("mcp resource", { clientName, uri, mime: part.mime })
@@ -1320,11 +1336,12 @@ export namespace SessionPrompt {
     }
   }
 
+  /** 根据 agent 与上一条助手消息注入 plan/build 提醒（PROMPT_PLAN、BUILD_SWITCH 或实验性 plan 流程） */
   async function insertReminders(input: { messages: MessageV2.WithParts[]; agent: Agent.Info; session: Session.Info }) {
     const userMessage = input.messages.findLast((msg) => msg.info.role === "user")
     if (!userMessage) return input.messages
 
-    // Original logic when experimental plan mode is disabled
+    /** 未开实验性 plan 模式时的原有逻辑 */
     if (!Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE) {
       if (input.agent.name === "plan") {
         userMessage.parts.push({
@@ -1350,10 +1367,9 @@ export namespace SessionPrompt {
       return input.messages
     }
 
-    // New plan mode logic when flag is enabled
     const assistantMessage = input.messages.findLast((msg) => msg.info.role === "assistant")
 
-    // Switching from plan mode to build mode
+    /** 从 plan 切到 build：若计划文件存在则注入 BUILD_SWITCH + 计划路径 */
     if (input.agent.name !== "plan" && assistantMessage?.info.agent === "plan") {
       const plan = Session.plan(input.session)
       const exists = await Filesystem.exists(plan)
@@ -1372,7 +1388,7 @@ export namespace SessionPrompt {
       return input.messages
     }
 
-    // Entering plan mode
+    /** 进入 plan 模式：注入长段 plan 流程说明（阶段、子代理、plan_exit 等） */
     if (input.agent.name === "plan" && assistantMessage?.info.agent !== "plan") {
       const plan = Session.plan(input.session)
       const exists = await Filesystem.exists(plan)
@@ -1460,6 +1476,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     return input.messages
   }
 
+  /** 在会话中执行用户指定的 shell 命令，写入 user + assistant + bash tool part，不经过 LLM */
   export const ShellInput = z.object({
     sessionID: Identifier.schema("session"),
     agent: z.string(),
@@ -1479,12 +1496,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     }
 
     using _ = defer(() => {
-      // If no queued callbacks, cancel (the default)
       const callbacks = state()[input.sessionID]?.callbacks ?? []
       if (callbacks.length === 0) {
         cancel(input.sessionID)
       } else {
-        // Otherwise, trigger the session loop to process queued items
         loop({ sessionID: input.sessionID, resume_existing: true }).catch((error) => {
           log.error("session loop failed to resume after shell command", { sessionID: input.sessionID, error })
         })
@@ -1710,6 +1725,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     return { info: msg, parts: [part] }
   }
 
+  /** 执行预定义命令：解析模板占位符、内联 shell 块、再按 subtask 或普通 prompt 走 prompt */
   export const CommandInput = z.object({
     messageID: Identifier.schema("message").optional(),
     sessionID: Identifier.schema("session"),
@@ -1737,11 +1753,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
   const argsRegex = /(?:\[Image\s+\d+\]|"[^"]*"|'[^']*'|[^\s"']+)/gi
   const placeholderRegex = /\$(\d+)/g
   const quoteTrimRegex = /^["']|["']$/g
-  /**
-   * Regular expression to match @ file references in text
-   * Matches @ followed by file paths, excluding commas, periods at end of sentences, and backticks
-   * Does not match when preceded by word characters or backticks (to avoid email addresses and quoted references)
-   */
 
   export async function command(input: CommandInput) {
     log.info("command", input)
@@ -1753,6 +1764,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
     const templateCommand = await command.template
 
+    /** $1..$N 占位符，最后一格吞掉剩余参数 */
     const placeholders = templateCommand.match(placeholderRegex) ?? []
     let last = 0
     for (const item of placeholders) {
@@ -1760,7 +1772,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       if (value > last) last = value
     }
 
-    // Let the final placeholder swallow any extra arguments so prompts read naturally
     const withArgs = templateCommand.replaceAll(placeholderRegex, (_, index) => {
       const position = Number(index)
       const argIndex = position - 1
@@ -1771,8 +1782,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     const usesArgumentsPlaceholder = templateCommand.includes("$ARGUMENTS")
     let template = withArgs.replaceAll("$ARGUMENTS", input.arguments)
 
-    // If command doesn't explicitly handle arguments (no $N or $ARGUMENTS placeholders)
-    // but user provided arguments, append them to the template
     if (placeholders.length === 0 && !usesArgumentsPlaceholder && input.arguments.trim()) {
       template = template + "\n\n" + input.arguments
     }
@@ -1833,6 +1842,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     }
 
     const templateParts = await resolvePromptParts(template)
+    /** 子代理或命令标记为 subtask 时，发一条 subtask part 由 loop 中 TaskTool 执行 */
     const isSubtask = (agent.mode === "subagent" && command.subtask !== false) || command.subtask === true
     const parts = isSubtask
       ? [
@@ -1887,6 +1897,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     return result
   }
 
+  /** 首条真实用户消息后为会话生成标题：用 title 代理调 LLM，取首行并截断 100 字 */
   async function ensureTitle(input: {
     session: Session.Info
     history: MessageV2.WithParts[]
@@ -1925,6 +1936,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         (await Provider.getSmallModel(input.providerID)) ?? (await Provider.getModel(input.providerID, input.modelID))
       )
     })
+    // 基于大模型为会话生成标题
     const result = await LLM.stream({
       agent,
       user: firstRealUser.info as MessageV2.User,
@@ -1947,6 +1959,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     })
     const text = await result.text.catch((err) => log.error("failed to generate title", { error: err }))
     if (text) {
+      // 清除大模型干扰信息
       const cleaned = text
         .replace(/<think>[\s\S]*?<\/think>\s*/g, "")
         .split("\n")

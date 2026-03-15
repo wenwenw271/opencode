@@ -1,3 +1,8 @@
+/**
+ * SessionProcessor：单条助手消息上的「LLM 流 + 工具」处理。
+ * 由 SessionPrompt.loop 创建，负责循环调用 LLM.stream、消费 fullStream 事件（reasoning/tool/text/step），
+ * 写 part、执行权限与 doom_loop 检查，并在 tool-calls 时由 AI SDK 执行工具后继续下一轮，直到模型结束或出错。
+ */
 import { MessageV2 } from "./message-v2"
 import { Log } from "@/util/log"
 import { Identifier } from "@/id/id"
@@ -17,12 +22,14 @@ import { PermissionNext } from "@/permission/next"
 import { Question } from "@/question"
 
 export namespace SessionProcessor {
+  /** 同一工具、同一参数连续调用达到此次数时触发 doom_loop 权限询问，防止死循环 */
   const DOOM_LOOP_THRESHOLD = 3
   const log = Log.create({ service: "session.processor" })
 
   export type Info = Awaited<ReturnType<typeof create>>
   export type Result = Awaited<ReturnType<Info["process"]>>
 
+  /** 为一条助手消息创建 processor，持有 toolCallId -> ToolPart 映射，暴露 process(streamInput) 驱动单轮或多轮 LLM+工具 */
   export function create(input: {
     assistantMessage: MessageV2.Assistant
     sessionID: string
@@ -42,6 +49,7 @@ export namespace SessionProcessor {
       partFromToolCall(toolCallID: string) {
         return toolcalls[toolCallID]
       },
+      /** 消费 LLM 流：每轮调 LLM.stream，按 fullStream 事件写 part；若有 tool-calls 则由 SDK 执行后下一轮，否则返回 stop/continue/compact */
       async process(streamInput: LLM.StreamInput) {
         log.info("process")
         needsCompaction = false
@@ -59,6 +67,7 @@ export namespace SessionProcessor {
                   SessionStatus.set(input.sessionID, { type: "busy" })
                   break
 
+                /** 推理块开始：创建 reasoning part 并记入 reasoningMap */
                 case "reasoning-start":
                   if (value.id in reasoningMap) {
                     continue
@@ -78,9 +87,11 @@ export namespace SessionProcessor {
                   await Session.updatePart(reasoningPart)
                   break
 
+                /** 推理块增量：追加 text，updatePartDelta */
                 case "reasoning-delta":
                   if (value.id in reasoningMap) {
                     const part = reasoningMap[value.id]
+                    // 拿到分块信息
                     part.text += value.text
                     if (value.providerMetadata) part.metadata = value.providerMetadata
                     await Session.updatePartDelta({
@@ -93,6 +104,7 @@ export namespace SessionProcessor {
                   }
                   break
 
+                /** 推理块结束：写 end 时间，落库后从 reasoningMap 移除 */
                 case "reasoning-end":
                   if (value.id in reasoningMap) {
                     const part = reasoningMap[value.id]
@@ -108,6 +120,7 @@ export namespace SessionProcessor {
                   }
                   break
 
+                /** 工具调用开始：创建 tool part（pending），callID 与 value.id 对应 */
                 case "tool-input-start":
                   const part = await Session.updatePart({
                     id: toolcalls[value.id]?.id ?? Identifier.ascending("part"),
@@ -131,6 +144,7 @@ export namespace SessionProcessor {
                 case "tool-input-end":
                   break
 
+                /** 工具名与参数就绪：更新 part 为 running；若最近 N 次同工具同参数则触发 doom_loop 权限询问 */
                 case "tool-call": {
                   const match = toolcalls[value.toolCallId]
                   if (match) {
@@ -177,6 +191,7 @@ export namespace SessionProcessor {
                   }
                   break
                 }
+                /** 工具执行完成：更新 part 为 completed，写入 output/metadata/title/attachments */
                 case "tool-result": {
                   const match = toolcalls[value.toolCallId]
                   if (match && match.state.status === "running") {
@@ -201,6 +216,7 @@ export namespace SessionProcessor {
                   break
                 }
 
+                /** 工具执行失败：更新 part 为 error；若为权限/Question 拒绝且未开 continue_loop_on_deny 则 blocked=true */
                 case "tool-error": {
                   const match = toolcalls[value.toolCallId]
                   if (match && match.state.status === "running") {
@@ -230,6 +246,7 @@ export namespace SessionProcessor {
                 case "error":
                   throw value.error
 
+                /** 本步开始：记录 Snapshot，写 step-start part */
                 case "start-step":
                   snapshot = await Snapshot.track()
                   await Session.updatePart({
@@ -241,6 +258,7 @@ export namespace SessionProcessor {
                   })
                   break
 
+                /** 本步结束：算 usage/cost、写 step-finish、更新助手消息、若有 snapshot 写 patch、触发 summarize；超限则 needsCompaction */
                 case "finish-step":
                   const usage = Session.getUsage({
                     model: input.model,
@@ -287,6 +305,7 @@ export namespace SessionProcessor {
                   }
                   break
 
+                /** 文本块开始：创建 text part 并赋给 currentText */
                 case "text-start":
                   currentText = {
                     id: Identifier.ascending("part"),
@@ -302,6 +321,7 @@ export namespace SessionProcessor {
                   await Session.updatePart(currentText)
                   break
 
+                /** 文本块增量：追加到 currentText，updatePartDelta */
                 case "text-delta":
                   if (currentText) {
                     currentText.text += value.text
@@ -316,6 +336,7 @@ export namespace SessionProcessor {
                   }
                   break
 
+                /** 文本块结束：触发 experimental.text.complete 插件，写 end 时间后清空 currentText */
                 case "text-end":
                   if (currentText) {
                     currentText.text = currentText.text.trimEnd()
@@ -351,6 +372,7 @@ export namespace SessionProcessor {
               if (needsCompaction) break
             }
           } catch (e: any) {
+            /** 上下文溢出时设 needsCompaction 并发 Event.Error；可重试则 delay 后 continue，否则写 error 并置 idle */
             log.error("process", {
               error: e,
               stack: JSON.stringify(e.stack),
@@ -384,6 +406,7 @@ export namespace SessionProcessor {
               SessionStatus.set(input.sessionID, { type: "idle" })
             }
           }
+          /** 异常或 needsCompaction 跳出流后：补写未完成的 snapshot patch，将未完成的 tool part 标为 aborted，更新助手消息并返回 */
           if (snapshot) {
             const patch = await Snapshot.patch(snapshot)
             if (patch.files.length) {
@@ -417,9 +440,13 @@ export namespace SessionProcessor {
           }
           input.assistantMessage.time.completed = Date.now()
           await Session.updateMessage(input.assistantMessage)
+          // 压缩标志
           if (needsCompaction) return "compact"
+          // 中断
           if (blocked) return "stop"
+          // 异常中断
           if (input.assistantMessage.error) return "stop"
+          /** 本轮正常结束且无 tool-calls 时由调用方决定是否继续 loop；有 tool-calls 时 streamInput 已更新，下一轮 while 再调 LLM.stream */
           return "continue"
         }
       },
