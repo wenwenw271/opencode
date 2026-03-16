@@ -1,0 +1,59 @@
+启动一个新的代理以自主处理复杂的多步骤任务。
+
+可用的代理类型及其可用的工具：
+{agents}
+
+使用 Task 工具时，必须指定 subagent_type 参数以选择要使用的代理类型。
+
+何时使用 Task 工具：
+- 当需要执行自定义斜杠命令时。将斜杠命令调用作为完整 prompt 使用 Task 工具。斜杠命令可带参数。例如：Task(description="检查文件", prompt="/check-file path/to/file.py")
+
+何时不要使用 Task 工具：
+- 若要读取特定文件路径，请使用 Read 或 Glob 工具而非 Task 工具，以更快找到匹配
+- 若在搜索特定类定义（如 "class Foo"），请使用 Glob 工具以更快找到匹配
+- 若在特定文件或 2–3 个文件中搜索代码，请使用 Read 工具而非 Task 工具，以更快找到匹配
+- 与上述代理描述无关的其他任务
+
+使用说明：
+1. 尽可能并发启动多个代理以提高效率；为此，在同一轮消息中使用多次工具调用
+2. 代理完成后会向您返回一条消息。代理返回的结果对用户不可见。要向用户展示结果，您应发送一条文本消息，对结果做简明总结。输出中包含 task_id，之后可复用以继续同一子代理会话。
+3. 每次调用代理均从全新上下文开始，除非提供 task_id 以恢复同一子代理会话（会延续其先前的消息与工具输出）。全新启动时，您的 prompt 应包含高度详细的任务描述供代理自主执行，并明确说明代理应在最终唯一一条消息中向您返回哪些信息。
+4. 代理的输出通常应予以信任
+5. 明确告知代理您期望其编写代码还是仅做调研（搜索、读文件、网页抓取等），因其无法感知用户意图。如有可能，告知其如何验证工作（例如相关测试命令）。
+6. 若代理描述中提到应主动使用该代理，则请尽量在用户未明确要求前就使用。请自行判断。
+
+示例用法（注意：以下代理仅为示例说明，请使用上方列出的实际代理）：
+
+<example_agent_descriptions>
+"code-reviewer"：在完成一段重要代码编写后使用此代理
+"greeting-responder"：在响应用户问候并用友好玩笑回复时使用此代理
+</example_agent_description>
+
+<example>
+user: "请写一个判断数字是否为质数的函数"
+assistant: 好的，我来写一个判断质数的函数
+assistant: 先使用 Write 工具编写该函数
+assistant: 我将使用 Write 工具写入以下代码：
+<code>
+function isPrime(n) {
+  if (n <= 1) return false
+  for (let i = 2; i * i <= n; i++) {
+    if (n % i === 0) return false
+  }
+  return true
+}
+</code>
+<commentary>
+由于已编写了重要代码且任务完成，现在使用 code-reviewer 代理审查代码
+</commentary>
+assistant: 现在使用 code-reviewer 代理审查代码
+assistant: 使用 Task 工具启动 code-reviewer 代理
+</example>
+
+<example>
+user: "你好"
+<commentary>
+用户在进行问候，使用 greeting-responder 代理用友好玩笑回复
+</commentary>
+assistant: "我将使用 Task 工具启动 greeting-responder 代理"
+</example>

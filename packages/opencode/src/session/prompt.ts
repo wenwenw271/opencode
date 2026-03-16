@@ -117,6 +117,7 @@ export namespace SessionPrompt {
     format: MessageV2.Format.optional(),
     system: z.string().optional(),
     variant: z.string().optional(),
+    // 属性以及属性值约束
     parts: z.array(
       z.discriminatedUnion("type", [
         MessageV2.TextPart.omit({
@@ -309,14 +310,33 @@ export namespace SessionPrompt {
     while (true) {
       SessionStatus.set(sessionID, { type: "busy" })
       log.info("loop", { step, sessionID })
+      // INFO  2026-03-16T02:35:44 +0ms service=session.prompt step=0 sessionID=ses_30b8611f7ffeCpD1qKhpBvtx9a loop
       if (abort.aborted) break
+
       // 按 sessionID 拉取该会话的消息，并做压缩过滤，得到「当前有效窗口」内的消息列表，按时间从旧到新。
       let msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
 
+
+      // 作用是从消息列表中找到关键的状态信息，主要用于恢复对话上下文和处理未完成的任务
+      // // 例如在代码生成对话中：
+      // 1. 用户提问："写一个排序算法"  // lastUser
+      // 2. AI开始回复（未完成）  // lastAssistant (finish=false)
+      // 3. 用户刷新页面
+      // 4. 代码执行到这里：
+      //    - lastUser = "写一个排序算法"
+      //    - lastAssistant = AI未完成的回复
+      //    - lastFinished = 上一次对话中完成的回复
+      //    - tasks = 可能包含子任务（如"生成代码"、"添加注释"等）
+      //
+      // // 根据这些信息，可以：
+      // if (lastAssistant && !lastAssistant.finish) {
+      //   // 继续生成未完成的回复
+      //   continueGeneration(lastUser, lastAssistant);
+      // }
       /** 从后往前找：最后一条用户消息、最后一条助手消息、最后一条已结束的助手消息；并收集未处理的 compaction/subtask */
-      let lastUser: MessageV2.User | undefined
-      let lastAssistant: MessageV2.Assistant | undefined
-      let lastFinished: MessageV2.Assistant | undefined
+      let lastUser: MessageV2.User | undefined//获取用户最近一次输入，，确定AI需要回应的最新用户问题
+      let lastAssistant: MessageV2.Assistant | undefined//获取AI的最后一次回复,检查AI是否已经对用户的问题作出回应,用于继续生成回复（如果AI还没回复完）
+      let lastFinished: MessageV2.Assistant | undefined//区分"正在生成中"和"已完成"的消息,当重新进入对话时，知道从哪里开始继续生成
       let tasks: (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] = []
       for (let i = msgs.length - 1; i >= 0; i--) {
         const msg = msgs[i]
@@ -325,11 +345,13 @@ export namespace SessionPrompt {
         if (!lastFinished && msg.info.role === "assistant" && msg.info.finish)
           lastFinished = msg.info as MessageV2.Assistant
         if (lastUser && lastFinished) break
+        // 把消息里类型为 compaction 或 subtask 的 part 当作 task 收集起来。
         const task = msg.parts.filter((part) => part.type === "compaction" || part.type === "subtask")
         if (task && !lastFinished) {
           tasks.push(...task)
         }
       }
+
 
       if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
       /** 已有助手回复且非 tool-calls/unknown，且在该用户消息之后，则本轮不再生成，退出 */
@@ -367,6 +389,7 @@ export namespace SessionPrompt {
 
       /** 待执行的子任务：创建 Task 工具 part，TaskTool.execute 内部会再调 SessionPrompt.prompt */
       if (task?.type === "subtask") {
+        // 初始化任务工具
         const taskTool = await TaskTool.init()
         const taskModel = task.model ? await Provider.getModel(task.model.providerID, task.model.modelID) : model
         const assistantMessage = (await Session.updateMessage({
@@ -582,7 +605,7 @@ export namespace SessionPrompt {
         session,
       })
 
-      // 调用LLM能力开始处理用户问题
+      // 典型的闭包用法：为一条助手消息创建 processor，最后需要用到process方法
       const processor = SessionProcessor.create({
         assistantMessage: (await Session.updateMessage({
           id: Identifier.ascending("message"),
@@ -618,6 +641,9 @@ export namespace SessionPrompt {
       const lastUserMsg = msgs.findLast((m) => m.info.role === "user")
       const bypassAgentCheck = lastUserMsg?.parts.some((p) => p.type === "agent") ?? false
 
+      // 为不同agent注入不同的工具
+      // 为这个 agent 解析工具
+      // 从 ToolRegistry.tools(model, agent) 拿到当前可用的工具列表（每个已经通过 t.init({ agent }) 得到 description、parameters、execute）。
       const tools = await resolveTools({
         agent,
         session,
@@ -672,6 +698,7 @@ export namespace SessionPrompt {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
       }
 
+      // 真正执行LLM处理用户问题，前面只是创建processor，这里调用processor.process处理用户问题
       const result = await processor.process({
         user: lastUser,
         agent,
@@ -796,11 +823,16 @@ export namespace SessionPrompt {
       },
     })
 
+    // 在 ToolRegistry.tools 里发生的事是：
+    // 用 all() 拿到上面那份全局工具列表（里面已经包含 TaskTool）。
+    // 按 model 做少量过滤（codesearch/websearch、apply_patch/edit/write 等），TaskTool 不会被过滤掉。
+    // 对每一个工具（包括 TaskTool）调用 t.init({ agent })，这里的 agent 就是当前主 agent（如 build）：
     for (const item of await ToolRegistry.tools(
       { modelID: input.model.api.id, providerID: input.model.providerID },
       input.agent,
     )) {
       const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
+
       tools[item.id] = tool({
         id: item.id as any,
         description: item.description,
@@ -1343,6 +1375,7 @@ export namespace SessionPrompt {
 
     /** 未开实验性 plan 模式时的原有逻辑 */
     if (!Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE) {
+      // 计划模式
       if (input.agent.name === "plan") {
         userMessage.parts.push({
           id: Identifier.ascending("part"),
@@ -1355,6 +1388,7 @@ export namespace SessionPrompt {
       }
       const wasPlan = input.messages.some((msg) => msg.info.role === "assistant" && msg.info.agent === "plan")
       if (wasPlan && input.agent.name === "build") {
+        // build模式
         userMessage.parts.push({
           id: Identifier.ascending("part"),
           messageID: userMessage.info.id,
@@ -1967,6 +2001,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         .find((line) => line.length > 0)
       if (!cleaned) return
 
+      // 设置本次会话的标题
       const title = cleaned.length > 100 ? cleaned.substring(0, 97) + "..." : cleaned
       return Session.setTitle({ sessionID: input.session.id, title })
     }

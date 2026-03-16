@@ -206,6 +206,8 @@ export namespace MessageV2 {
   })
   export type CompactionPart = z.infer<typeof CompactionPart>
 
+  // type: "subtask" 的 part 只在一个地方被「创建」并写进消息——执行「命令」且该命令按 subtask 跑时。
+  // 其它地方只是「定义类型」或「消费」已存在的 subtask。
   export const SubtaskPart = PartBase.extend({
     type: z.literal("subtask"),
     prompt: z.string(),
@@ -806,11 +808,20 @@ export namespace MessageV2 {
     },
   )
 
+  // 从消息流中过滤出"压缩后"的对话历史，当遇到用户消息且该消息已被压缩时停止收集。
+  // 1. 用户发消息 → AI回复
+  // 2. 对话变长 → 需要压缩
+  // 3. 系统生成摘要 → 标记原对话为"已完成"
+  // 4. 下次加载对话 → 只加载到最后一个压缩点
+  // 5. 用户看到的是精简后的对话历史
   export async function filterCompacted(stream: AsyncIterable<MessageV2.WithParts>) {
+    // // 输出：过滤后的消息数组
     const result = [] as MessageV2.WithParts[]
     const completed = new Set<string>()
+    // 输入：异步可迭代的消息流（包含各种类型的消息片段）
     for await (const msg of stream) {
-      result.push(msg)
+      result.push(msg)// 先收集所有消息
+      // 条件1：遇到"用户消息" + 该消息已完成 + 包含压缩片段, 停止收集
       if (
         msg.info.role === "user" &&
         completed.has(msg.info.id) &&

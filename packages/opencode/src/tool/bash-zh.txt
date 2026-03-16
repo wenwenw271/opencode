@@ -1,0 +1,113 @@
+在持久化 shell 会话中执行给定的 bash 命令，支持可选超时，并确保正确处理与安全措施。
+
+所有命令默认在 ${directory} 下运行。若需在其他目录执行，请使用 `workdir` 参数。避免使用 `cd <目录> && <命令>` 这种写法，应使用 `workdir`。
+
+重要：本工具用于终端操作（如 git、npm、docker 等）。不要用于文件操作（读、写、编辑、搜索、查找文件），请使用对应的专用工具。
+
+执行命令前请遵循以下步骤：
+
+1. 目录确认：
+   - 若命令会创建新目录或文件，请先用 `ls` 确认父目录存在且位置正确
+   - 例如在执行 "mkdir foo/bar" 前，先用 `ls foo` 确认 "foo" 存在且为预期父目录
+
+2. 命令执行：
+   - 路径中含空格时请用双引号包裹（如 rm "带空格的路径/file.txt"）
+   - 正确示例：mkdir "/Users/name/My Documents"、python "/path/with spaces/script.py"
+   - 错误示例：mkdir /Users/name/My Documents、python /path/with spaces/script.py（会失败）
+   - 确认引号正确后执行命令并捕获输出。
+
+使用说明：
+  - command 参数必填。
+  - 可指定可选超时（毫秒）。未指定时默认 120000ms（2 分钟）。
+  - 建议用 5–10 个词简明描述该命令的作用。
+  - 若输出超过 ${maxLines} 行或 ${maxBytes} 字节会被截断，完整输出会写入文件。可使用 Read 的 offset/limit 读指定段落，或用 Grep 搜索全文。不要用 `head`、`tail` 等命令限制输出；完整输出已写入文件以便精确搜索。
+
+  - 除非用户明确要求或任务确实需要，否则避免在 Bash 中使用 `find`、`grep`、`cat`、`head`、`tail`、`sed`、`awk` 或 `echo`，应优先使用专用工具：
+    - 文件搜索：用 Glob（不要用 find 或 ls）
+    - 内容搜索：用 Grep（不要用 grep 或 rg）
+    - 读文件：用 Read（不要用 cat/head/tail）
+    - 编辑文件：用 Edit（不要用 sed/awk）
+    - 写文件：用 Write（不要用 echo >/cat <<EOF）
+    - 与用户沟通：直接输出文本（不要用 echo/printf）
+  - 多条命令时：
+    - 若彼此独立可并行，在同一轮消息中发起多次 Bash 调用（如同时需要 "git status" 和 "git diff"）。
+    - 若存在依赖需顺序执行，用单次 Bash 调用并用 '&&' 串联（如 `git add . && git commit -m "message" && git push`）。例如 mkdir 后再 cp、Write 后再 Bash 做 git、git add 后再 git commit 等，应顺序执行。
+    - 仅当需要顺序执行但不关心前一条是否失败时使用 ';'
+    - 不要用换行分隔多条命令（引号内的换行可以）
+  - 避免使用 `cd <目录> && <命令>`。请用 `workdir` 参数切换目录。
+    <good-example>
+    使用 workdir="/foo/bar" 且 command: pytest tests
+    </good-example>
+    <bad-example>
+    cd /foo/bar && pytest tests
+    </bad-example>
+
+# 使用 git 提交更改
+
+仅在用户要求时创建提交。若不清楚，先询问。当用户要求新建 git 提交时，请严格按以下步骤：
+
+Git 安全约定：
+- 绝不修改 git 配置
+- 除非用户明确要求，绝不执行破坏性/不可逆的 git 命令（如 push --force、hard reset 等）
+- 除非用户明确要求，绝不跳过钩子（--no-verify、--no-gpg-sign 等）
+- 绝不对 main/master 执行 force push，若用户要求则予以警告
+- 避免 git commit --amend。仅在以下全部满足时使用 --amend：
+  (1) 用户明确要求 amend，或提交已成功但 pre-commit 钩子自动修改了需纳入的文件
+  (2) HEAD 提交由您在本轮对话中创建（可验证：git log -1 --format='%an %ae'）
+  (3) 提交尚未推送到远端（可验证：git status 显示 "Your branch is ahead"）
+- 若提交失败或被钩子拒绝，绝不要 amend，应修复问题并新建提交
+- 若已推送到远端，除非用户明确要求，绝不要 amend（会涉及 force push）
+- 除非用户明确要求，绝不提交更改。仅在用户明确要求时提交，否则会显得过于主动。
+
+1. 可在单次回复中调用多个工具。当需要多种独立信息且命令较可能成功时，为获得最佳性能请并行执行以下 bash 命令：
+   - 运行 git status 查看未跟踪文件
+   - 运行 git diff 查看将提交的已暂存与未暂存变更
+   - 运行 git log 查看近期提交信息，以便遵循本仓库的提交信息风格
+2. 分析所有已暂存变更（含原有与新增）并起草提交信息：
+   - 概括变更性质（如新功能、功能增强、修复、重构、测试、文档等），确保信息准确反映变更与目的（如 "add" 表示全新功能，"update" 表示增强，"fix" 表示修复等）
+   - 不要提交可能包含敏感信息的文件（.env、credentials.json 等）。若用户明确要求提交此类文件则予以警告
+   - 起草简洁（1–2 句）的提交信息，侧重「为何」而非「做了什么」
+   - 确保准确反映变更与目的
+3. 可在单次回复中调用多个工具。当需要多种独立信息且较可能成功时，请并行执行：
+   - 将相关未跟踪文件加入暂存区
+   - 用上述信息创建提交
+   - 提交完成后运行 git status 确认成功
+   注意：git status 依赖提交完成，故应在提交之后顺序执行。
+4. 若因 pre-commit 钩子导致提交失败，请修复问题并新建提交（amend 规则见上）
+
+重要说明：
+- 除 git 相关 bash 命令外，不要额外执行读代码或探索代码的命令
+- 不要使用 TodoWrite 或 Task 工具
+- 除非用户明确要求，不要推送到远端
+- 不要使用带 -i 的 git 命令（如 git rebase -i、git add -i），因其需要交互输入，当前不支持
+- 若无变更可提交（即无未跟踪文件且无修改），不要创建空提交
+
+# 创建 Pull Request
+所有与 GitHub 相关的操作（issues、pull requests、checks、releases 等）均通过 Bash 工具使用 gh 命令。若给出 GitHub URL，用 gh 命令获取所需信息。
+
+重要：当用户要求创建 pull request 时，请严格按以下步骤：
+
+1. 可在单次回复中调用多个工具。当需要多种独立信息且较可能成功时，请并行执行以下 bash 命令，以了解当前分支自与主分支分叉后的状态：
+   - 运行 git status 查看未跟踪文件
+   - 运行 git diff 查看将提交的已暂存与未暂存变更
+   - 检查当前分支是否跟踪远端分支以及与远端是否同步，以判断是否需要 push
+   - 运行 git log 与 `git diff [base-branch]...HEAD` 了解当前分支的完整提交历史（自与基础分支分叉起）
+2. 分析将包含在 pull request 中的所有变更，确保查看所有相关提交（不仅是最近一次，而是将包含在 PR 中的全部提交），并起草 PR 摘要
+3. 可在单次回复中调用多个工具。当需要多种独立信息且较可能成功时，请并行执行：
+   - 如需则创建新分支
+   - 如需则用 -u 推送到远端
+   - 使用 gh pr create，按以下格式创建 PR。使用 HEREDOC 传入 body 以保证格式正确。
+<example>
+gh pr create --title "PR 标题" --body "$(cat <<'EOF'
+## Summary
+<1-3 个要点>
+EOF
+)"
+</example>
+
+注意：
+- 不要使用 TodoWrite 或 Task 工具
+- 完成后返回 PR URL 供用户查看
+
+# 其他常见操作
+- 查看 GitHub PR 评论：gh api repos/foo/bar/pulls/123/comments

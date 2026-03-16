@@ -1,0 +1,24 @@
+并发执行多组相互独立的工具调用以降低延迟。
+
+使用 BATCH 工具会提升用户体验。
+
+载荷格式（JSON 数组）：
+[{"tool": "read", "parameters": {"filePath": "src/index.ts", "limit": 350}},{"tool": "grep", "parameters": {"pattern": "Session\\.updatePart", "include": "src/**/*.ts"}},{"tool": "bash", "parameters": {"command": "git status", "description": "显示工作区状态"}}]
+
+说明：
+- 每批 1–25 次工具调用
+- 所有调用同时启动，顺序不保证
+- 部分失败不会中断其他调用
+- 不要在 batch 工具内再调用 batch 工具
+
+适用场景：
+- 读取多个文件
+- grep + glob + read 组合
+- 多条 bash 命令
+- 同一文件或不同文件的多处编辑
+
+不适用场景：
+- 依赖前序工具输出的操作（例如先创建再读同一文件）
+- 顺序敏感的状态修改
+
+批量调用工具可带来约 2–5 倍的效率提升并改善用户体验。

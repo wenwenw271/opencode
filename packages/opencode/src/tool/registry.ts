@@ -100,6 +100,8 @@ export namespace ToolRegistry {
     const config = await Config.get()
     const question = ["app", "cli", "desktop"].includes(Flag.OPENCODE_CLIENT) || Flag.OPENCODE_ENABLE_QUESTION_TOOL
 
+    // 在 ToolRegistry（tool/registry.ts）里，所有内置工具（含 TaskTool）被写死在一个列表里：
+    // ：TaskTool 是“注册”在全局的 all() 列表里，不是“注册到某个主 agent”的。
     return [
       InvalidTool,
       ...(question ? [QuestionTool] : []),
@@ -135,6 +137,11 @@ export namespace ToolRegistry {
     },
     agent?: Agent.Info,
   ) {
+    // 拿到所有工具列表
+    // TaskTool 注册到主 agent 的方式 = 被包含在全局列表里 + 在“解析当前轮工具”时，
+    // 把当前主 agent 传给 TaskTool.init(agent)。
+    // 没有单独的“把 Task 只注册给 build”的步骤，
+    // 而是谁当主 agent，谁就会在当轮拿到 Task 工具（并带上按该 agent 权限算出的子代理列表）。
     const tools = await all()
     const result = await Promise.all(
       tools

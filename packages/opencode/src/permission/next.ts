@@ -43,17 +43,30 @@ export namespace PermissionNext {
   })
   export type Ruleset = z.infer<typeof Ruleset>
 
+  // [
+  //   { permission: "*", pattern: "*", action: "allow" },
+  //   { permission: "doom_loop", pattern: "*", action: "ask" },
+  //   { permission: "external_directory", pattern: "**/*", action: "ask" },
+  //   { permission: "external_directory", pattern: "/skills/**/*", action: "allow" },
+  //   { permission: "question", pattern: "*", action: "deny" },
+  //   { permission: "read", pattern: "*", action: "allow" },
+  //   { permission: "read", pattern: "*.env", action: "ask" },
+  //   { permission: "read", pattern: "*.env.*", action: "ask" },
+  //   { permission: "read", pattern: "*.env.example", action: "allow" }
+  // ]
   export function fromConfig(permission: Config.Permission) {
     const ruleset: Ruleset = []
     for (const [key, value] of Object.entries(permission)) {
       if (typeof value === "string") {
+        // 情况1：值是字符串（如 "*": "allow"）
         ruleset.push({
-          permission: key,
-          action: value,
-          pattern: "*",
+          permission: key, // 权限名称："*"
+          action: value, // 操作类型："allow"
+          pattern: "*", // 匹配所有
         })
         continue
       }
+      // 情况2：值是对象（如 read: {...}）
       ruleset.push(
         ...Object.entries(value).map(([pattern, action]) => ({ permission: key, pattern: expand(pattern), action })),
       )

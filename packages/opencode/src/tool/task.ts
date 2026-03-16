@@ -25,6 +25,7 @@ const parameters = z.object({
 })
 
 export const TaskTool = Tool.define("task", async (ctx) => {
+  // 获取除了primary 模式的agent
   const agents = await Agent.list().then((x) => x.filter((a) => a.mode !== "primary"))
 
   // Filter agents by permissions if agent provided
@@ -33,6 +34,8 @@ export const TaskTool = Tool.define("task", async (ctx) => {
     ? agents.filter((a) => PermissionNext.evaluate("task", a.name, caller.permission).action !== "deny")
     : agents
 
+  // TaskTool 在 init 里用传入的 agent（当前主 agent）去算“可用的子代理”，并生成描述里的 {agents}：
+  // explore、general
   const description = DESCRIPTION.replace(
     "{agents}",
     accessibleAgents
@@ -58,6 +61,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         })
       }
 
+      // 本质上就是在工具类调用了agent
       const agent = await Agent.get(params.subagent_type)
       if (!agent) throw new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`)
 

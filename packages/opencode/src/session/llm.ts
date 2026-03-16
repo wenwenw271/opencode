@@ -155,6 +155,12 @@ export namespace LLM {
     // This is enabled for:
     // 1. Providers with "litellm" in their ID or API ID (auto-detected)
     // 2. Providers with explicit "litellmProxy: true" option (opt-in for custom gateways)
+
+    // LiteLLM 和一些 Anthropic 代理要求在消息历史中包含工具调用时必须有 tools 参数，
+    // 即使没有工具被使用。添加一个从未被调用的虚拟工具来满足这种验证。该
+    // 功能可启用于以下情况：
+    // 1. 提供者的ID或API ID中带有“litellm”（自动检测）
+    // 2.具有明确“litellmProxy： true”选项的提供者（自定义网关选择加入）
     const isLiteLLMProxy =
       provider.options?.["litellmProxy"] === true ||
       input.model.providerID.toLowerCase().includes("litellm") ||

@@ -29,6 +29,7 @@ export namespace SessionProcessor {
   export type Info = Awaited<ReturnType<typeof create>>
   export type Result = Awaited<ReturnType<Info["process"]>>
 
+  // 封装了与大型语言模型（LLM）的流式交互、工具调用管理、会话状态更新、权限控制以及异常恢复等复杂逻辑，旨在支持单轮或多轮的“LLM → 工具 → LLM”循环
   /** 为一条助手消息创建 processor，持有 toolCallId -> ToolPart 映射，暴露 process(streamInput) 驱动单轮或多轮 LLM+工具 */
   export function create(input: {
     assistantMessage: MessageV2.Assistant
@@ -36,6 +37,7 @@ export namespace SessionProcessor {
     model: Provider.Model
     abort: AbortSignal
   }) {
+    // toolcalls：映射表，键为工具调用 ID（由 LLM 生成），值为对应的 ToolPart 对象。用于在流式事件中快速定位需要更新的 Part。
     const toolcalls: Record<string, MessageV2.ToolPart> = {}
     let snapshot: string | undefined
     let blocked = false
@@ -50,6 +52,15 @@ export namespace SessionProcessor {
         return toolcalls[toolCallID]
       },
       /** 消费 LLM 流：每轮调 LLM.stream，按 fullStream 事件写 part；若有 tool-calls 则由 SDK 执行后下一轮，否则返回 stop/continue/compact */
+      /** process 是一个 async 函数，接收 LLM.StreamInput（通常包含消息历史、工具列表、模型参数等），并在一个 while(true) 循环中反复调用 LLM 流，直到满足退出条件。*/
+      // {
+      //   type: 'step-start',
+      //   messageId: 'msg-DJ1azZRazAQfLVBrRlP8Oyzz',
+      //   request: {
+      //     body: '{"model":"qwen-plus","temperature":0,"messages":[{"role":"user","content":"用一句话介绍北京。然后调用 get_time 工具一次。"}],"tools":[{"type":"function","function":{"name":"get_time","description":"返回当前时间","parameters":{"type":"object","properties":{"tz":{"type":"string"}},"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}],"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true}}'
+      //   },
+      //   warnings: []
+      // }
       async process(streamInput: LLM.StreamInput) {
         log.info("process")
         needsCompaction = false
@@ -58,6 +69,7 @@ export namespace SessionProcessor {
           try {
             let currentText: MessageV2.TextPart | undefined
             let reasoningMap: Record<string, MessageV2.ReasoningPart> = {}
+
             const stream = await LLM.stream(streamInput)
 
             for await (const value of stream.fullStream) {
@@ -145,6 +157,12 @@ export namespace SessionProcessor {
                   break
 
                 /** 工具名与参数就绪：更新 part 为 running；若最近 N 次同工具同参数则触发 doom_loop 权限询问 */
+                //  {
+                //   type: 'tool-call',
+                //   toolCallId: 'call_d7acb19ecfb0404889321b',
+                //   toolName: 'get_time',
+                //   args: {}
+                // }
                 case "tool-call": {
                   const match = toolcalls[value.toolCallId]
                   if (match) {
@@ -192,6 +210,13 @@ export namespace SessionProcessor {
                   break
                 }
                 /** 工具执行完成：更新 part 为 completed，写入 output/metadata/title/attachments */
+                //  {
+                //   type: 'tool-result',
+                //   toolCallId: 'call_d7acb19ecfb0404889321b',
+                //   toolName: 'get_time',
+                //   args: {},
+                //   result: { now: '2026-03-16T07:09:49.944Z' }
+                // }
                 case "tool-result": {
                   const match = toolcalls[value.toolCallId]
                   if (match && match.state.status === "running") {
@@ -247,6 +272,14 @@ export namespace SessionProcessor {
                   throw value.error
 
                 /** 本步开始：记录 Snapshot，写 step-start part */
+
+                //  type: 'step-start',
+                //   messageId: 'msg-8lZ7F8lm4ph9x89HvdedZ80T',
+                //   request: {
+                //     body: '{"model":"qwen-plus","temperature":0,"messages":[{"role":"user","content":"用一句话介绍北京。然后调用 get_time 工具一次。"},{"role":"assistant","content":"北京是中国的首都，是一座融合了悠久历史与现代文明的国际化大都市。\\n\\n","tool_calls":[{"id":"call_d7acb19ecfb0404889321b","type":"function","function":{"name":"get_time","arguments":"{}"}}]},{"role":"tool","tool_call_id":"call_d7acb19ecfb0404889321b","content":"{\\"now\\":\\"2026-03-16T07:09:49.944Z\\"}"}],"tools":[{"type":"function","function":{"name":"get_time","description":"返回当前时间","parameters":{"type":"object","properties":{"tz":{"type":"string"}},"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}],"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true}}'
+                //   },
+                //   warnings: []
+                // }
                 case "start-step":
                   snapshot = await Snapshot.track()
                   await Session.updatePart({
@@ -334,6 +367,12 @@ export namespace SessionProcessor {
                       delta: value.text,
                     })
                   }
+                  // part =  { type: 'text-delta', textDelta: '北京' }
+                  // part =  { type: 'text-delta', textDelta: '是中国' }
+                  // part =  { type: 'text-delta', textDelta: '的首都，' }
+                  // part =  { type: 'text-delta', textDelta: '是一座' }
+                  // part =  { type: 'text-delta', textDelta: '融合了悠久历史与现代' }
+                  // part =  { type: 'text-delta', textDelta: '文明的国际化大都市。\n\n' }
                   break
 
                 /** 文本块结束：触发 experimental.text.complete 插件，写 end 时间后清空 currentText */

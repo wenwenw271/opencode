@@ -77,25 +77,36 @@ export namespace Agent {
   const state = Instance.state(async () => {
     const cfg = await Config.get()
 
+    // // 获取所有技能目录（比如用户安装的插件/技能目录）
     const skillDirs = await Skill.dirs()
+    // // 创建白名单列表，包含：
+    // // - Truncate.GLOB（可能是全局通配符）
+    // // - 每个技能目录下的所有文件 (*)
     const whitelistedDirs = [Truncate.GLOB, ...skillDirs.map((dir) => path.join(dir, "*"))]
     /** 默认权限：多数操作 allow，敏感项（doom_loop、.env、question/plan）按需 ask/deny */
+  // 对不同类型的外部资源（文件、目录、特定操作）设置精细化的访问权限，比如哪些允许(allow)，哪些需要询问(ask)，哪些禁止(deny)。
     const defaults = PermissionNext.fromConfig({
+      //   "*": "allow",  // 默认所有操作都允许
       "*": "allow",
+        // "死循环"相关操作需要询问用户
       doom_loop: "ask",
+        // 对外部目录的访问权限
       external_directory: {
         "*": "ask",
         ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
       },
+        // 禁止提问相关操作
       question: "deny",
+        // 禁止进入计划
       plan_enter: "deny",
+        // 禁止退出计划
       plan_exit: "deny",
       // mirrors github.com/github/gitignore Node.gitignore pattern for .env files
       read: {
-        "*": "allow",
-        "*.env": "ask",
-        "*.env.*": "ask",
-        "*.env.example": "allow",
+        "*": "allow",// 默认所有文件允许读取
+        "*.env": "ask",// 但环境变量文件需要询问
+        "*.env.*": "ask", // 类似的环境变量文件需要询问
+        "*.env.example": "allow",// 示例环境变量文件允许读取
       },
     })
     const user = PermissionNext.fromConfig(cfg.permission ?? {})
@@ -115,6 +126,7 @@ export namespace Agent {
           }),
           user,
         ),
+        // 主代理：可执行工具，允许 question / plan_enter
         mode: "primary",
         native: true,
       },
@@ -139,6 +151,7 @@ export namespace Agent {
           }),
           user,
         ),
+        // 计划模式：禁止编辑类工具，仅允许编辑计划相关路径
         mode: "primary",
         native: true,
       },
@@ -155,6 +168,7 @@ export namespace Agent {
           user,
         ),
         options: {},
+        // 通用代理
         mode: "subagent",
         native: true,
       },
@@ -183,12 +197,14 @@ export namespace Agent {
         description: `Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.`,
         prompt: PROMPT_EXPLORE,
         options: {},
+        // 探索子代理
         mode: "subagent",
         native: true,
       },
       /** 压缩主代理：内部用，隐藏，仅 prompt 无工具 */
       compaction: {
         name: "compaction",
+        // 压缩主代理
         mode: "primary",
         native: true,
         hidden: true,
@@ -205,6 +221,7 @@ export namespace Agent {
       /** 标题主代理：内部用，隐藏，生成会话标题 */
       title: {
         name: "title",
+        // 标题主代理
         mode: "primary",
         options: {},
         native: true,
@@ -222,6 +239,7 @@ export namespace Agent {
       /** 摘要主代理：内部用，隐藏，生成会话摘要 */
       summary: {
         name: "summary",
+        // 摘要主代理
         mode: "primary",
         options: {},
         native: true,
