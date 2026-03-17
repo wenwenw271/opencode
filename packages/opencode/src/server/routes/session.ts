@@ -763,6 +763,22 @@ export const SessionRoutes = lazy(() =>
         return stream(c, async (stream) => {
           const sessionID = c.req.valid("param").sessionID
           const body = c.req.valid("json")
+          // {
+          //     "agent": "build",
+          //     "model": {
+          //         "modelID": "big-pickle",
+          //         "providerID": "opencode"
+          //     },
+          //     "messageID": "msg_cfafc5d0b001gxsT8tfOFsw3ft",
+          //     "parts": [
+          //         {
+          //             "id": "prt_cfafc5d120016V77tFf9k1eCUA",
+          //             "type": "text",
+          //             "text": "opencode处理用户问题是不是会做计划，然后严格按照计划的内容执行任务"
+          //         }
+          //     ]
+          // }
+          // 调用 SessionPrompt.prompt 处理用户输入，/ 同步调用 - 等待回复
           const msg = await SessionPrompt.prompt({ ...body, sessionID })
           stream.write(JSON.stringify(msg))
         })
@@ -789,6 +805,8 @@ export const SessionRoutes = lazy(() =>
         }),
       ),
       validator("json", SessionPrompt.PromptInput.omit({ sessionID: true })),
+      // // 异步调用 - 立即返回
+      // SessionPrompt.prompt({ ...body, sessionID })
       async (c) => {
         c.status(204)
         c.header("Content-Type", "application/json")

@@ -749,13 +749,14 @@ export namespace Session {
     const { id, messageID, sessionID, ...data } = part
     const time = Date.now()
     Database.use((db) => {
+      // 消息持久化
       db.insert(PartTable)
         .values({
           id,
           message_id: messageID,
           session_id: sessionID,
           time_created: time,
-          data,
+          data,//type 和 text
         })
         .onConflictDoUpdate({ target: PartTable.id, set: { data } })
         .run()

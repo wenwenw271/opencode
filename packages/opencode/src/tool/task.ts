@@ -129,6 +129,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
       using _ = defer(() => ctx.abort.removeEventListener("abort", cancel))
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
 
+      // 当主代理需要调用子代理执行任务时，Task 工具会创建一个子会话，并在子会话中调用 SessionPrompt.prompt 来执行子任务。
       const result = await SessionPrompt.prompt({
         messageID,
         sessionID: session.id,

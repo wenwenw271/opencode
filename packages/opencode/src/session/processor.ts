@@ -44,6 +44,7 @@ export namespace SessionProcessor {
     let attempt = 0
     let needsCompaction = false
 
+    // result 是一个对象，包含 message getter、partFromToolCall 方法和 process 方法
     const result = {
       get message() {
         return input.assistantMessage
@@ -61,6 +62,7 @@ export namespace SessionProcessor {
       //   },
       //   warnings: []
       // }
+      //   法返回字符串值："compact"、"stop" 或 "continue"
       async process(streamInput: LLM.StreamInput) {
         log.info("process")
         needsCompaction = false
@@ -70,6 +72,7 @@ export namespace SessionProcessor {
             let currentText: MessageV2.TextPart | undefined
             let reasoningMap: Record<string, MessageV2.ReasoningPart> = {}
 
+            // 调用 LLM.stream 开始流式处理
             const stream = await LLM.stream(streamInput)
 
             for await (const value of stream.fullStream) {
@@ -77,6 +80,7 @@ export namespace SessionProcessor {
               switch (value.type) {
                 case "start":
                   SessionStatus.set(input.sessionID, { type: "busy" })
+                  // 此处是跳出for循环
                   break
 
                 /** 推理块开始：创建 reasoning part 并记入 reasoningMap */

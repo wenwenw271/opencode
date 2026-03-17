@@ -97,10 +97,11 @@ export namespace SessionPrompt {
   }
 
   /** 发送用户消息的入参：sessionID、可选 agent/model/format、parts（文本/文件/agent/subtask）等 */
+  // Zod 这里既定义了「数据结构」，又定义了「如何校验/解析这类数据
   export const PromptInput = z.object({
     sessionID: Identifier.schema("session"),
     messageID: Identifier.schema("message").optional(),
-    model: z
+    model: z //{}
       .object({
         providerID: z.string(),
         modelID: z.string(),
@@ -163,12 +164,41 @@ export namespace SessionPrompt {
       ]),
     ),
   })
+  // // 这是「类型」：从 schema 推断出的 TS 类型，用来写类型标注
   export type PromptInput = z.infer<typeof PromptInput>
 
   /** 创建用户消息并进入 loop；noReply 时只写用户消息不触发 AI */
+  //   1、定义了一个名为 prompt 的常量，
+    //    1.1、通过调用一个函数 fn 创建，传入两个参数 PromptInput 和一个异步回调函数
+    //        异步函数，定义了具体的业务逻辑。异步回调函数，接收一个符合 PromptInput 类型的对象 input，并执行一系列操作。
   export const prompt = fn(PromptInput, async (input) => {
+
+    // opencode是创建会话，再开处理用户问题，获取对应的会话对象。
     const session = await Session.get(input.sessionID)
     await SessionRevert.cleanup(session)
+
+    // 创建用户消息
+    //
+
+/*
+      msg = Msg(
+            name="user",
+             content=q,
+             role="user",
+         )
+
+      msg = Msg(
+        name="user",
+        content=[
+          TextBlock(
+            text=q,
+            type="text"
+          )
+        ],
+        role="user",
+      )
+*/
+
 
     const message = await createUserMessage(input)
     await Session.touch(input.sessionID)
@@ -191,6 +221,7 @@ export namespace SessionPrompt {
       return message
     }
 
+    // 进行LLM循环处理
     return loop({ sessionID: input.sessionID })
   })
 
@@ -290,8 +321,10 @@ export namespace SessionPrompt {
    * 退出时 resolve 等待中的 callbacks 并返回最后一条助手消息。
    */
   export const loop = fn(LoopInput, async (input) => {
+    //input = sessionID
     const { sessionID, resume_existing } = input
 
+    //
     const abort = resume_existing ? resume(sessionID) : start(sessionID)
     if (!abort) {
       return new Promise<MessageV2.WithParts>((resolve, reject) => {
@@ -306,6 +339,7 @@ export namespace SessionPrompt {
     let structuredOutput: unknown | undefined
 
     let step = 0
+    // 从会话状态中获取当前会话的信息
     const session = await Session.get(sessionID)
     while (true) {
       SessionStatus.set(sessionID, { type: "busy" })
@@ -314,6 +348,7 @@ export namespace SessionPrompt {
       if (abort.aborted) break
 
       // 按 sessionID 拉取该会话的消息，并做压缩过滤，得到「当前有效窗口」内的消息列表，按时间从旧到新。
+      // 每轮开头都会重新拉消息：MessageV2.filterCompacted(MessageV2.stream(sessionID))，用当前会话里的消息决定这一轮要干什么。
       let msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
 
 
@@ -706,6 +741,14 @@ export namespace SessionPrompt {
         sessionID,
         system,
         messages: [
+          /*
+              messages: [
+            { role: 'user', content: 'Hi!' },
+            { role: 'assistant', content: 'Hello, how can I help?' },
+            { role: 'user', content: 'Where can I buy the best Currywurst in Berlin?' },
+          ],
+          */
+          // 转为模型能处理的格式
           ...MessageV2.toModelMessages(msgs, model),
           ...(isLastStep
             ? [
@@ -1001,16 +1044,43 @@ export namespace SessionPrompt {
   }
 
   /** 构造并持久化用户消息：解析 agent/model/variant，处理 parts（file/MCP/agent/文本），Session.updateMessage/updatePart */
+  // createUserMessage 是一个异步函数，用于构造并持久化一条用户消息。它的核心流程是：
+  // 根据用户输入（PromptInput）解析出当前会话使用的 AI 智能体（agent）、模型（model）和变体（variant），
+  // 然后处理输入中的内容片段（parts），
+  // 最后将完整的消息信息（info）和每个片段（part）保存到会话存储中。
   async function createUserMessage(input: PromptInput) {
-    const agent = await Agent.get(input.agent ?? (await Agent.defaultAgent()))
 
+    // {
+    //     "agent": "build",
+    //     "model": {
+    //         "modelID": "big-pickle",
+    //         "providerID": "opencode"
+    //     },
+    //     "messageID": "msg_cfafc5d0b001gxsT8tfOFsw3ft",
+    //     "parts": [
+    //         {
+    //             "id": "prt_cfafc5d120016V77tFf9k1eCUA",
+    //             "type": "text",
+    //             "text": "opencode处理用户问题是不是会做计划，然后严格按照计划的内容执行任务"
+    //         }
+    //     ]
+    // }
+
+    // 确定智能体（agent）、模型（model）、变体（variant）
+    const agent = await Agent.get(input.agent ?? (await Agent.defaultAgent()))
     const model = input.model ?? agent.model ?? (await lastModel(input.sessionID))
-    const full =
-      !input.variant && agent.variant
-        ? await Provider.getModel(model.providerID, model.modelID).catch(() => undefined)
-        : undefined
+    const full = !input.variant && agent.variant ? await Provider.getModel(model.providerID, model.modelID).catch(() => undefined) : undefined
+    //  参数用于选择模型的特定变体或版本
     const variant = input.variant ?? (agent.variant && full?.variants?.[agent.variant] ? agent.variant : undefined)
 
+
+    // 处理 MCP 资源：当用户输入中包含 MCP 资源时（part.source?.type === "resource"），执行以下操作
+    // 创建消息部分：
+    // 首先创建一个说明性的文本部分，指示正在读取 MCP 资源
+    // 然后尝试读取 MCP 资源的实际内容
+    // 根据资源内容的类型（文本或二进制），创建相应的消息部分
+    // 最后将原始的文件部分添加到消息中
+    // 错误处理：如果读取 MCP 资源失败，创建一个错误消息部分
     const info: MessageV2.Info = {
       id: input.messageID ?? Identifier.ascending("message"),
       role: "user",
@@ -1025,6 +1095,8 @@ export namespace SessionPrompt {
       format: input.format,
       variant,
     }
+
+    // 清理临时指令（instruction）
     using _ = defer(() => InstructionPrompt.clear(info.id))
 
     type Draft<T> = T extends MessageV2.Part ? Omit<T, "id"> & { id?: string } : never
@@ -1033,6 +1105,11 @@ export namespace SessionPrompt {
       id: part.id ?? Identifier.ascending("part"),
     })
 
+    // 用户输入可能包含多个内容片段（如文本、文件、智能体调用等）
+    // ，每个片段由 type 区分。
+    // 核心逻辑在 Promise.all(input.parts.map(...)) 中，
+    // 它会为每个片段返回一个或多个 Draft<MessageV2.Part> 数组（
+    // 因为一个原始片段可能展开成多个持久化的 part）。最后用 .flat().map(assign) 展平并赋予 ID。
     const parts = await Promise.all(
       input.parts.map(async (part): Promise<Draft<MessageV2.Part>[]> => {
         if (part.type === "file") {
@@ -1332,6 +1409,20 @@ export namespace SessionPrompt {
           ]
         }
 
+        /*
+        * [
+        * {
+        *  "id":“”,
+        *  "type":“”,
+        *  "text":“”,
+        *  "messageID":“”,
+        *  "sessionID":“”,
+        *
+        * }
+        * ]
+        *
+        *
+        * */
         return [
           {
             ...part,
@@ -1356,8 +1447,9 @@ export namespace SessionPrompt {
         parts,
       },
     )
-
+    // 消息的基本信息（如 ID、角色、会话 ID、时间戳、代理、模型等）存储到会话中
     await Session.updateMessage(info)
+    // 遍历消息的所有部分（如文本、文件、代理调用等），并将它们存储到会话中
     for (const part of parts) {
       await Session.updatePart(part)
     }

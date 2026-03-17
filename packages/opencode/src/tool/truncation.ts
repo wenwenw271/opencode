@@ -47,7 +47,7 @@ export namespace Truncate {
     const rule = PermissionNext.evaluate("task", "*", agent.permission)
     return rule.action !== "deny"
   }
-
+  // ：真正塞进消息、发给下一轮模型的，只是截断后的那一段 + 一句提示，不是整份文件内容。
   export async function output(text: string, options: Options = {}, agent?: Agent.Info): Promise<Result> {
     const maxLines = options.maxLines ?? MAX_LINES
     const maxBytes = options.maxBytes ?? MAX_BYTES

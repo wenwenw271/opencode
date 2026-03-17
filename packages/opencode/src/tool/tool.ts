@@ -71,6 +71,7 @@ export namespace Tool {
           if (result.metadata.truncated !== undefined) {
             return result
           }
+          // 对工具的输出进行截断
           const truncated = await Truncate.output(result.output, {}, initCtx?.agent)
           return {
             ...result,

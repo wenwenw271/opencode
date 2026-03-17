@@ -566,6 +566,7 @@ export namespace MessageV2 {
           parts: [],
         }
         result.push(userMessage)
+
         for (const part of msg.parts) {
           if (part.type === "text" && !part.ignored)
             userMessage.parts.push({
@@ -595,6 +596,7 @@ export namespace MessageV2 {
               text: "What did we do so far?",
             })
           }
+
           if (part.type === "subtask") {
             userMessage.parts.push({
               type: "text",
@@ -734,6 +736,7 @@ export namespace MessageV2 {
     const size = 50
     let offset = 0
     while (true) {
+      // 获取所有消息基础信息
       const rows = Database.use((db) =>
         db
           .select()
@@ -749,6 +752,7 @@ export namespace MessageV2 {
       const ids = rows.map((row) => row.id)
       const partsByMessage = new Map<string, MessageV2.Part[]>()
       if (ids.length > 0) {
+        // 获取实际消息内容
         const partRows = Database.use((db) =>
           db
             .select()
@@ -759,7 +763,7 @@ export namespace MessageV2 {
         )
         for (const row of partRows) {
           const part = {
-            ...row.data,
+            ...row.data,//type 和 text
             id: row.id,
             sessionID: row.session_id,
             messageID: row.message_id,
@@ -770,6 +774,7 @@ export namespace MessageV2 {
         }
       }
 
+    // 遍历所有消息，按顺序生成消息对象
       for (const row of rows) {
         const info = { ...row.data, id: row.id, sessionID: row.session_id } as MessageV2.Info
         yield {
