@@ -44,17 +44,24 @@ export namespace Skill {
 
   // External skill directories to search for (project-level and global)
   // These follow the directory layout used by Claude Code and other agents.
+  // 外部目录（全局
   const EXTERNAL_DIRS = [".claude", ".agents"]
+  // *外部目录（项目
   const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
   const OPENCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
   const SKILL_PATTERN = "**/SKILL.md"
-
+  // 扫描多处目录与配置，收集所有 **SKILL.md** 路径；
   export const state = Instance.state(async () => {
     const skills: Record<string, Info> = {}
     const dirs = new Set<string>()
 
+    // 对每个路径执行 **addSkill(match)**：
+    // 用 **ConfigMarkdown.parse(match)** 解析 frontmatter + 正文，
+    // 把 `name/description`（来自 frontmatter）和 `location/content`（路径 + 正文）写入内存对象 **skills[name]**；
     const addSkill = async (match: string) => {
+      //  调用 **ConfigMarkdown.parse(match)** 得到 `md = { data: frontmatter, content: 正文 }`。
       const md = await ConfigMarkdown.parse(match).catch((err) => {
+        // - 用 **Info.pick({ name, description }).safeParse(md.data)** 校验 frontmatter；失败则跳过。
         const message = ConfigMarkdown.FrontmatterError.isInstance(err)
           ? err.data.message
           : `Failed to parse skill ${match}`
@@ -77,6 +84,7 @@ export namespace Skill {
         })
       }
 
+      // 即：**每个 Skill 的 content（SKILL.md 全文）在 state 初始化时就已经读入**，没有“仅读 name/description，等 get(name) 再读 content”的延迟加载。
       dirs.add(path.dirname(match))
 
       skills[parsed.data.name] = {
