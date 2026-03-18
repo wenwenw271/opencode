@@ -778,6 +778,9 @@ export namespace Session {
       delta: z.string(),
     }),
     async (input) => {
+      //  // 仅发 message.part.delta 事件
+      // TUI/ACP 会订阅 message.part.delta，在前端/内存里的 part 上做 part[field] += delta，用来实时打屏。
+      // 所以：流式“拼接”给用户看是在前端用 delta 做的；服务端“完整信息”的拼接只在 Processor 内存里做，最终通过 updatePart 一次性写入 DB。
       Bus.publish(MessageV2.Event.PartDelta, input)
     },
   )

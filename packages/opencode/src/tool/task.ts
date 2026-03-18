@@ -134,6 +134,8 @@ export const TaskTool = Tool.define("task", async (ctx) => {
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
 
       // 当主代理需要调用子代理执行任务时，Task 工具会创建一个子会话，并在子会话中调用 SessionPrompt.prompt 来执行子任务。
+      // SessionPrompt.prompt() 返回的就是「该 session 里 LLM 产生的最后一条 Assistant 消息」（类型是 MessageV2.WithParts，即带 info + parts 的那条消息）。
+      //   result =   { role: 'assistant', content: 'Hello, how can I help?' },
       const result = await SessionPrompt.prompt({
         messageID,
         sessionID: session.id,

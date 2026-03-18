@@ -100,6 +100,7 @@ export namespace SessionProcessor {
                     metadata: value.providerMetadata,
                   }
                   reasoningMap[value.id] = reasoningPart
+                  // 创建空推理块
                   await Session.updatePart(reasoningPart)
                   break
 
@@ -107,9 +108,10 @@ export namespace SessionProcessor {
                 case "reasoning-delta":
                   if (value.id in reasoningMap) {
                     const part = reasoningMap[value.id]
-                    // 拿到分块信息
+                    // 拼接完整的内容信息
                     part.text += value.text
                     if (value.providerMetadata) part.metadata = value.providerMetadata
+                    // 发布事件
                     await Session.updatePartDelta({
                       sessionID: part.sessionID,
                       messageID: part.messageID,
@@ -131,6 +133,7 @@ export namespace SessionProcessor {
                       end: Date.now(),
                     }
                     if (value.providerMetadata) part.metadata = value.providerMetadata
+                    // 更新完整的数据信息
                     await Session.updatePart(part)
                     delete reasoningMap[value.id]
                   }
@@ -344,7 +347,9 @@ export namespace SessionProcessor {
 
                 /** 文本块开始：创建 text part 并赋给 currentText */
                 case "text-start":
+                  // 创建空的text-part
                   currentText = {
+                    // id用于后续更新
                     id: Identifier.ascending("part"),
                     messageID: input.assistantMessage.id,
                     sessionID: input.assistantMessage.sessionID,
@@ -361,8 +366,10 @@ export namespace SessionProcessor {
                 /** 文本块增量：追加到 currentText，updatePartDelta */
                 case "text-delta":
                   if (currentText) {
+                    // 拼接每个数据块的内容
                     currentText.text += value.text
                     if (value.providerMetadata) currentText.metadata = value.providerMetadata
+                    // 此处只发布事件，没有更新具体的text
                     await Session.updatePartDelta({
                       sessionID: currentText.sessionID,
                       messageID: currentText.messageID,
@@ -382,6 +389,7 @@ export namespace SessionProcessor {
                 /** 文本块结束：触发 experimental.text.complete 插件，写 end 时间后清空 currentText */
                 case "text-end":
                   if (currentText) {
+                    // 对 currentText 做 trim、插件等处理。
                     currentText.text = currentText.text.trimEnd()
                     const textOutput = await Plugin.trigger(
                       "experimental.text.complete",
@@ -398,6 +406,8 @@ export namespace SessionProcessor {
                       end: Date.now(),
                     }
                     if (value.providerMetadata) currentText.metadata = value.providerMetadata
+                    // 再 Session.updatePart(currentText) 写一次 DB，
+                    // 此时 currentText.text 已经是完整文本，所以 DB 里这条 part 的 data.text 就是完整内容。
                     await Session.updatePart(currentText)
                   }
                   currentText = undefined
@@ -414,6 +424,66 @@ export namespace SessionProcessor {
               }
               if (needsCompaction) break
             }
+
+          //    request: {
+            //     body: '{
+            //     "model":"qwen-plus","temperature":0,
+            //     "messages":[{"role":"user","content":"用一句话介绍北京。然后调用 get_time 工具一次。"}],
+            //     "tools":[{"type":"function","function":{"name":"get_time","description":"返回当前时间","parameters":{"type":"object","properties":{"tz":{"type":"string"}},"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}],"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true}}'
+            //   },
+            //   warnings: []
+            // }
+
+            /*
+            value数据块的格式
+            文本：
+              part =  { type: 'text-delta', textDelta: '北京' }
+              part =  { type: 'text-delta', textDelta: '是中国' }
+              part =  { type: 'text-delta', textDelta: '的首都，' }
+              part =  { type: 'text-delta', textDelta: '是一座' }
+              part =  { type: 'text-delta', textDelta: '融合了悠久历史与现代' }
+              part =  { type: 'text-delta', textDelta: '文明的国际化大都市。\n\n' }
+
+            工具调用
+             part =   {
+               type: 'tool-call-streaming-start',
+               toolCallId: 'call_9378232919bc4d53885335',
+               toolName: 'get_time'
+             }
+             part =  {
+             type: 'tool-call',
+             toolCallId: 'call_9378232919bc4d53885335',
+             toolName: 'get_time',
+             args: {}
+             }
+             part =  {
+             type: 'tool-result',
+             toolCallId: 'call_9378232919bc4d53885335',
+             toolName: 'get_time',
+             args: {},
+             result: { now: '2026-03-18T06:26:32.843Z' }
+             }
+             调用工具后得到结果后，再次请求LLM
+             part =  {
+              type: 'step-start',
+              messageId: 'msg-D1JlezJkCjFPtTutS7mqSyJk',
+              request: {
+                body: '{"model":"qwen-plus","temperature":0,"messages":[
+                {"role":"user","content":"用一句话介绍北京。然后调用 get_time 工具一次。"},
+                {"role":"assistant","content":"北京是中国的首都，是一座融合了悠久历史与现代文明的国际化大都市。\\n\\n",
+                "tool_calls":[
+                    {"id":"call_9378232919bc4d53885335","type":"function","function":{"name":"get_time","arguments":"{}"}}]},
+                    {"role":"tool","tool_call_id":"call_9378232919bc4d53885335","content":"{\\"now\\":\\"2026-03-18T06:26:32.843Z\\"}"}],
+                    "tools":[{"type":"function","function":{"name":"get_time","description":"返回当前时间","parameters":{"type":"object","properties":{"tz":{"type":"string"}},"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}],"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true}}'
+              },
+              warnings: []
+            }
+
+
+
+            * */
+
+
           } catch (e: any) {
             /** 上下文溢出时设 needsCompaction 并发 Event.Error；可重试则 delay 后 continue，否则写 error 并置 idle */
             log.error("process", {

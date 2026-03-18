@@ -178,7 +178,25 @@ export const SessionRoutes = lazy(() =>
       ),
       async (c) => {
         const sessionID = c.req.valid("param").sessionID
+        // http://127.0.0.1:4096/session/ses_300042c20ffedjrLjSbh669ILw/todo
         const todos = await Todo.get(sessionID)
+        // [
+        //     {
+        //         "content": "创建日期工具类 DateUtils.java",
+        //         "status": "completed",
+        //         "priority": "high"
+        //     },
+        //     {
+        //         "content": "创建测试类 DateUtilsTest.java",
+        //         "status": "completed",
+        //         "priority": "high"
+        //     },
+        //     {
+        //         "content": "验证测试是否通过",
+        //         "status": "in_progress",
+        //         "priority": "high"
+        //     }
+        // ]
         return c.json(todos)
       },
     )

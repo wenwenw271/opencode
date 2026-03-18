@@ -2,7 +2,7 @@ import z from "zod"
 import { Tool } from "./tool"
 import DESCRIPTION_WRITE from "./todowrite.txt"
 import { Todo } from "../session/todo"
-
+// 创建工作计划
 export const TodoWriteTool = Tool.define("todowrite", {
   description: DESCRIPTION_WRITE,
   parameters: z.object({
@@ -16,6 +16,7 @@ export const TodoWriteTool = Tool.define("todowrite", {
       metadata: {},
     })
 
+    // 存储计划内容
     await Todo.update({
       sessionID: ctx.sessionID,
       todos: params.todos,

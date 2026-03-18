@@ -807,6 +807,7 @@ export namespace SessionPrompt {
       if (item.info.role === "user") continue
       const queued = state()[sessionID]?.callbacks ?? []
       for (const q of queued) {
+        // 用当前会话里最后一条助手消息去 resolve 排队中的 callbacks，并返回这条消息（
         q.resolve(item)
       }
       return item
@@ -1394,6 +1395,7 @@ export namespace SessionPrompt {
           const perm = PermissionNext.evaluate("task", part.name, agent.permission)
           const hint = perm.action === "deny" ? " . Invoked by user; guaranteed to exist." : ""
           return [
+            // {  messageID: info.id,sessionID: input.sessionID,"id": "prt_cffd0e954002843rhTsaknS7cn","type": "agent","name": "general","source": {"value": "@general","start": 0,"end": 8}}
             {
               ...part,
               messageID: info.id,
@@ -1406,12 +1408,41 @@ export namespace SessionPrompt {
               synthetic: true,
               // An extra space is added here. Otherwise the 'Use' gets appended
               // to user's last word; making a combined word
+              // 通过TaskTool调用子agent
               text:
                 " Use the above message and context to generate a prompt and call the task tool with subagent: " +
                 part.name +
                 hint,
             },
           ]
+
+          /*
+                    {
+              "agent": "build",
+              "model": {
+                  "modelID": "big-pickle",
+                  "providerID": "opencode"
+              },
+              "messageID": "msg_cffd0e951001700Cz64tBT3HlD",
+              "parts": [
+                  {
+                      "id": "prt_cffd0e954001KkaI6PNZsK61O8",
+                      "type": "text",
+                      "text": "@general 你可以做什么"
+                  },
+                  {
+                      "id": "prt_cffd0e954002843rhTsaknS7cn",
+                      "type": "agent",
+                      "name": "general",
+                      "source": {
+                          "value": "@general",
+                          "start": 0,
+                          "end": 8
+                      }
+                  }
+              ]
+          }
+          * */
         }
 
         /*
@@ -1452,7 +1483,9 @@ export namespace SessionPrompt {
         parts,
       },
     )
+    // 一条“消息”在生命周期里会多次、增量地变更内容，且内容由多种类型的“块”组成。用 Message 存元信息、Part 存这些块，才能高效做流式写入和局部更新。
     // 消息的基本信息（如 ID、角色、会话 ID、时间戳、代理、模型等）存储到会话中
+    // 避免整条大对象反复读写。
     await Session.updateMessage(info)
     // 遍历消息的所有部分（如文本、文件、代理调用等），并将它们存储到会话中
     for (const part of parts) {

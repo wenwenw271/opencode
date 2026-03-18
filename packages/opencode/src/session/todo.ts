@@ -3,7 +3,8 @@ import { Bus } from "@/bus"
 import z from "zod"
 import { Database, eq, asc } from "../storage/db"
 import { TodoTable } from "./session.sql"
-
+// 会话待办事项
+// 只有“主 Agent 在本轮里调用了 todowrite 工具”时，才会更新/产生该会话的待办列表。
 export namespace Todo {
   export const Info = z
     .object({
@@ -40,9 +41,11 @@ export namespace Todo {
         )
         .run()
     })
+    // 发布事件，通知订阅者待办事项已更新
     Bus.publish(Event.Updated, input)
   }
 
+  // 获取待办事项
   export function get(sessionID: string) {
     const rows = Database.use((db) =>
       db.select().from(TodoTable).where(eq(TodoTable.session_id, sessionID)).orderBy(asc(TodoTable.position)).all(),

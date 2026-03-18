@@ -1,3 +1,7 @@
+/**
+ * Read 工具：从本地文件系统读取文件或目录内容，供 Agent 查看源码、目录结构等。
+ * 支持按行分页（offset/limit）、图片/PDF 以附件返回、二进制检测与 LSP/Instruction 联动。
+ */
 import z from "zod"
 import { createReadStream } from "fs"
 import * as fs from "fs/promises"
@@ -12,9 +16,12 @@ import { assertExternalDirectory } from "./external-directory"
 import { InstructionPrompt } from "../session/instruction"
 import { Filesystem } from "../util/filesystem"
 
+/** 默认单次读取行数上限 */
 const DEFAULT_READ_LIMIT = 2000
+/** 单行最大字符数，超长截断并加后缀 */
 const MAX_LINE_LENGTH = 2000
 const MAX_LINE_SUFFIX = `... (line truncated to ${MAX_LINE_LENGTH} chars)`
+/** 单次输出字节上限（约 50KB），防止上下文爆炸 */
 const MAX_BYTES = 50 * 1024
 const MAX_BYTES_LABEL = `${MAX_BYTES / 1024} KB`
 
@@ -37,11 +44,13 @@ export const ReadTool = Tool.define("read", {
 
     const stat = Filesystem.stat(filepath)
 
+    // 校验路径是否在允许的目录范围内（避免读项目外敏感路径）
     await assertExternalDirectory(ctx, filepath, {
       bypass: Boolean(ctx.extra?.["bypassCwdCheck"]),
       kind: stat?.isDirectory() ? "directory" : "file",
     })
 
+    // 请求 read 权限，用户同意后才继续（规则为 ask 时会阻塞到回复）
     await ctx.ask({
       permission: "read",
       patterns: [filepath],
@@ -50,6 +59,7 @@ export const ReadTool = Tool.define("read", {
     })
 
     if (!stat) {
+      // 路径不存在：尝试从同目录下找相似文件名，给出 Did you mean 提示
       const dir = path.dirname(filepath)
       const base = path.basename(filepath)
 
@@ -73,6 +83,7 @@ export const ReadTool = Tool.define("read", {
       throw new Error(`File not found: ${filepath}`)
     }
 
+    // 目录：列出条目（子目录带 /），支持 offset/limit 分页
     if (stat.isDirectory()) {
       const dirents = await fs.readdir(filepath, { withFileTypes: true })
       const entries = await Promise.all(
@@ -115,9 +126,10 @@ export const ReadTool = Tool.define("read", {
       }
     }
 
+    // 解析该文件相关的 instruction 提示（如 AGENTS.md 等），末尾会拼到 output 的 <system-reminder>
     const instructions = await InstructionPrompt.resolve(ctx.messages, filepath, ctx.messageID)
 
-    // Exclude SVG (XML-based) and vnd.fastbidsheet (.fbs extension, commonly FlatBuffers schema files)
+    // 图片与 PDF：不按文本输出，以 base64 附件返回供多模态模型使用（排除 SVG / .fbs）
     const mime = Filesystem.mimeType(filepath)
     const isImage = mime.startsWith("image/") && mime !== "image/svg+xml" && mime !== "image/vnd.fastbidsheet"
     const isPdf = mime === "application/pdf"
@@ -141,9 +153,11 @@ export const ReadTool = Tool.define("read", {
       }
     }
 
+    // 二进制文件不按文本读，直接报错
     const isBinary = await isBinaryFile(filepath, Number(stat.size))
     if (isBinary) throw new Error(`Cannot read binary file: ${filepath}`)
 
+    // 流式按行读，兼顾 offset/limit 与 MAX_BYTES，超长行截断
     const stream = createReadStream(filepath, { encoding: "utf8" })
     const rl = createInterface({
       input: stream,
@@ -190,11 +204,13 @@ export const ReadTool = Tool.define("read", {
       throw new Error(`Offset ${offset} is out of range for this file (${lines} lines)`)
     }
 
+    // 行号从 offset 起，格式为 "N: 内容"
     const content = raw.map((line, index) => {
       return `${index + offset}: ${line}`
     })
     const preview = raw.slice(0, 20).join("\n")
 
+    // 输出 XML 风格标签，便于 Agent 解析；末尾提示是否被截断及下次 offset
     let output = [`<path>${filepath}</path>`, `<type>file</type>`, "<content>"].join("\n")
     output += content.join("\n")
 
@@ -212,7 +228,7 @@ export const ReadTool = Tool.define("read", {
     }
     output += "\n</content>"
 
-    // just warms the lsp client
+    // 让 LSP 感知该文件以便后续诊断；记录本会话对该文件的读时间
     LSP.touchFile(filepath, false)
     FileTime.read(ctx.sessionID, filepath)
 
@@ -232,9 +248,11 @@ export const ReadTool = Tool.define("read", {
   },
 })
 
+/**
+ * 判断是否为二进制文件：先按扩展名黑名单，再读前 4KB 采样，含 NUL 或 >30% 非可打印字符则视为二进制。
+ */
 async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean> {
   const ext = path.extname(filepath).toLowerCase()
-  // binary check for common non-text extensions
   switch (ext) {
     case ".zip":
     case ".tar":
@@ -271,6 +289,7 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
 
   if (fileSize === 0) return false
 
+  // 采样前 4KB：出现 NUL 或非可打印字符占比 >30% 则判为二进制
   const fh = await fs.open(filepath, "r")
   try {
     const sampleSize = Math.min(4096, fileSize)
@@ -285,7 +304,6 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
         nonPrintableCount++
       }
     }
-    // If >30% non-printable characters, consider it binary
     return nonPrintableCount / result.bytesRead > 0.3
   } finally {
     await fh.close()
