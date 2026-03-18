@@ -349,6 +349,7 @@ export namespace SessionPrompt {
 
       // 按 sessionID 拉取该会话的消息，并做压缩过滤，得到「当前有效窗口」内的消息列表，按时间从旧到新。
       // 每轮开头都会重新拉消息：MessageV2.filterCompacted(MessageV2.stream(sessionID))，用当前会话里的消息决定这一轮要干什么。
+      // 按从新到旧遍历消息流，遇到 assistant 且 summary === true 且已正常结束 → 把这条 summary 的 parentID（即触发压缩的那条 user 的 id）记到 completed。
       let msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
 
 
@@ -423,6 +424,7 @@ export namespace SessionPrompt {
       const task = tasks.pop()
 
       /** 待执行的子任务：创建 Task 工具 part，TaskTool.execute 内部会再调 SessionPrompt.prompt */
+      // 多数情况下主agent会根据任务需要自主调用TaskTool，此处调用是为了处理command模式、web端/其他客户端手动指定使用子agent，才会触发
       if (task?.type === "subtask") {
         // 初始化任务工具
         const taskTool = await TaskTool.init()
@@ -515,6 +517,7 @@ export namespace SessionPrompt {
             })
           },
         }
+        // 手动调用工具
         const result = await taskTool.execute(taskArgs, taskCtx).catch((error) => {
           executionError = error
           log.error("subtask execution failed", { error, agent: task.agent, description: task.description })
@@ -602,6 +605,7 @@ export namespace SessionPrompt {
 
       /** 待执行的压缩任务：SessionCompaction.process 总结历史并写回 */
       if (task?.type === "compaction") {
+        // 处理压缩
         const result = await SessionCompaction.process({
           messages: msgs,
           parentID: lastUser.id,
@@ -786,6 +790,7 @@ export namespace SessionPrompt {
 
       if (result === "stop") break
       if (result === "compact") {
+        // 创建压缩会话
         await SessionCompaction.create({
           sessionID,
           agent: lastUser.agent,
@@ -1880,6 +1885,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
   const placeholderRegex = /\$(\d+)/g
   const quoteTrimRegex = /^["']|["']$/g
 
+  // 只有通过 command() 且该 command 对应 subagent 或 command.subtask === true 时，才会生成带 type: "subtask" 的 part，
+  // 并交给后面的 prompt() 写成一条用户消息。 其他地方（包括普通的 prompt() 调用）都不会往消息里塞 subtask pa
   export async function command(input: CommandInput) {
     log.info("command", input)
     const command = await Command.get(input.command)

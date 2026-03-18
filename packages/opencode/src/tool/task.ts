@@ -13,10 +13,13 @@ import { PermissionNext } from "@/permission/next"
 
 const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
+  // 主 agent 调用 Task 工具 时，给子 agent 的「任务说明」就是 prompt 参数 的字符串
   prompt: z.string().describe("The task for the agent to perform"),
+  // 用哪个子 agent（如 explore、general）
   subagent_type: z.string().describe("The type of specialized agent to use for this task"),
   task_id: z
     .string()
+    // 只有当你打算恢复之前的任务时，才应设置（你可以传递之前的task_id，任务会继续之前的子代理会话，而不是重新创建新任务
     .describe(
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
     )
@@ -45,6 +48,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
   return {
     description,
     parameters,
+    // 工具真正需要执行的逻辑
     async execute(params: z.infer<typeof parameters>, ctx) {
       const config = await Config.get()
 

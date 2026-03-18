@@ -128,6 +128,7 @@ export namespace SessionCompaction {
       }
     }
 
+    // 压缩智能体
     const agent = await Agent.get("compaction")
     const model = agent.model
       ? await Provider.getModel(agent.model.providerID, agent.model.modelID)
@@ -170,6 +171,18 @@ export namespace SessionCompaction {
       { sessionID: input.sessionID },
       { context: [], prompt: undefined },
     )
+    /*
+    请提供一个详细的提示，以便继续我们上面的对话。
+    重点关注有助于继续对话的信息，包括我们做了什么、正在做什么、正在处理哪些文件，以及接下来要做什么。
+    你构建的摘要将被用来让另一位代理阅读并继续工作。
+    在构建摘要时，尽量遵循以下模板：
+    --- 目标 [用户试图实现什么目标？]指令
+    - [用户给了你哪些重要的相关指示]
+    - [如果有计划或规格，包含相关信息以便下一位代理继续使用]
+    发现 [本次对话中学到的显著内容，对下一位代理继续工作时有用]
+    已完成 [已完成的工作， 还有哪些工作正在进行中，还有哪些工作未完成？]
+    相关文件目录[构建一个结构化的列表，列出已阅读、编辑或创建的与当前任务相关的文件。如果目录中的所有文件都相关，则包含该目录的路径。]---`
+    * */
     const defaultPrompt = `Provide a detailed prompt for continuing our conversation above.
 Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next.
 The summary that you construct will be used so that another agent can read it and continue the work.
@@ -199,6 +212,7 @@ When constructing the summary, try to stick to this template:
 ---`
 
     const promptText = compacting.prompt ?? [defaultPrompt, ...compacting.context].join("\n\n")
+    // 调用LLM处理压缩
     const result = await processor.process({
       user: userMessage,
       agent,
@@ -220,7 +234,7 @@ When constructing the summary, try to stick to this template:
       ],
       model,
     })
-
+    // 压缩之后还是超token，直接报错
     if (result === "compact") {
       processor.message.error = new MessageV2.ContextOverflowError({
         message: replay
@@ -305,6 +319,7 @@ When constructing the summary, try to stick to this template:
       overflow: z.boolean().optional(),
     }),
     async (input) => {
+    // 创建压缩会话消息
       const msg = await Session.updateMessage({
         id: Identifier.ascending("message"),
         role: "user",
@@ -315,6 +330,7 @@ When constructing the summary, try to stick to this template:
           created: Date.now(),
         },
       })
+      // 创建压缩会话具体内容
       await Session.updatePart({
         id: Identifier.ascending("part"),
         messageID: msg.id,
