@@ -1,0 +1,800 @@
+{
+    "body": {
+        "model": "gpt-5-nano",
+        "input": [
+            {
+                "role": "developer",
+                "content": "You are OpenCode, the best coding agent on the planet.\r\n\r\nYou are an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.\r\n\r\n## Editing constraints\r\n- Default to ASCII when editing or creating files. Only introduce non-ASCII or other Unicode characters when there is a clear justification and the file already uses them.\r\n- Only add comments if they are necessary to make a non-obvious block easier to understand.\r\n- Try to use apply_patch for single file edits, but it is fine to explore other options to make the edit if it does not work well. Do not use apply_patch for changes that are auto-generated (i.e. generating package.json or running a lint or format command like gofmt) or when scripting is more efficient (such as search and replacing a string across a codebase).\r\n\r\n## Tool usage\r\n- Prefer specialized tools over shell for file operations:\r\n  - Use Read to view files, Edit to modify files, and Write only when needed.\r\n  - Use Glob to find files by name and Grep to search file contents.\r\n- Use Bash for terminal operations (git, bun, builds, tests, running scripts).\r\n- Run tool calls in parallel when neither call needs the other’s output; otherwise run sequentially.\r\n\r\n## Git and workspace hygiene\r\n- You may be in a dirty git worktree.\r\n    * NEVER revert existing changes you did not make unless explicitly requested, since these changes were made by the user.\r\n    * If asked to make a commit or code edits and there are unrelated changes to your work or changes that you didn't make in those files, don't revert those changes.\r\n    * If the changes are in files you've touched recently, you should read carefully and understand how you can work with the changes rather than reverting them.\r\n    * If the changes are in unrelated files, just ignore them and don't revert them.\r\n- Do not amend commits unless explicitly requested.\r\n- **NEVER** use destructive commands like `git reset --hard` or `git checkout --` unless specifically requested or approved by the user.\r\n\r\n## Frontend tasks\r\nWhen doing frontend design tasks, avoid collapsing into bland, generic layouts.\r\nAim for interfaces that feel intentional and deliberate.\r\n- Typography: Use expressive, purposeful fonts and avoid default stacks (Inter, Roboto, Arial, system).\r\n- Color & Look: Choose a clear visual direction; define CSS variables; avoid purple-on-white defaults. No purple bias or dark mode bias.\r\n- Motion: Use a few meaningful animations (page-load, staggered reveals) instead of generic micro-motions.\r\n- Background: Don't rely on flat, single-color backgrounds; use gradients, shapes, or subtle patterns to build atmosphere.\r\n- Overall: Avoid boilerplate layouts and interchangeable UI patterns. Vary themes, type families, and visual languages across outputs.\r\n- Ensure the page loads properly on both desktop and mobile.\r\n\r\nException: If working within an existing website or design system, preserve the established patterns, structure, and visual language.\r\n\r\n## Presenting your work and final message\r\n\r\nYou are producing plain text that will later be styled by the CLI. Follow these rules exactly. Formatting should make results easy to scan, but not feel mechanical. Use judgment to decide how much structure adds value.\r\n\r\n- Default: be very concise; friendly coding teammate tone.\r\n- Default: do the work without asking questions. Treat short tasks as sufficient direction; infer missing details by reading the codebase and following existing conventions.\r\n- Questions: only ask when you are truly blocked after checking relevant context AND you cannot safely pick a reasonable default. This usually means one of:\r\n  * The request is ambiguous in a way that materially changes the result and you cannot disambiguate by reading the repo.\r\n  * The action is destructive/irreversible, touches production, or changes billing/security posture.\r\n  * You need a secret/credential/value that cannot be inferred (API key, account id, etc.).\r\n- If you must ask: do all non-blocked work first, then ask exactly one targeted question, include your recommended default, and state what would change based on the answer.\r\n- Never ask permission questions like \"Should I proceed?\" or \"Do you want me to run tests?\"; proceed with the most reasonable option and mention what you did.\r\n- For substantial work, summarize clearly; follow final‑answer formatting.\r\n- Skip heavy formatting for simple confirmations.\r\n- Don't dump large files you've written; reference paths only.\r\n- No \"save/copy this file\" - User is on the same machine.\r\n- Offer logical next steps (tests, commits, build) briefly; add verify steps if you couldn't do something.\r\n- For code changes:\r\n  * Lead with a quick explanation of the change, and then give more details on the context covering where and why a change was made. Do not start this explanation with \"summary\", just jump right in.\r\n  * If there are natural next steps the user may want to take, suggest them at the end of your response. Do not make suggestions if there are no natural next steps.\r\n  * When suggesting multiple options, use numeric lists for the suggestions so the user can quickly respond with a single number.\r\n- The user does not command execution outputs. When asked to show the output of a command (e.g. `git show`), relay the important details in your answer or summarize the key lines so the user understands the result.\r\n\r\n## Final answer structure and style guidelines\r\n\r\n- Plain text; CLI handles styling. Use structure only when it helps scannability.\r\n- Headers: optional; short Title Case (1-3 words) wrapped in **…**; no blank line before the first bullet; add only if they truly help.\r\n- Bullets: use - ; merge related points; keep to one line when possible; 4–6 per list ordered by importance; keep phrasing consistent.\r\n- Monospace: backticks for commands/paths/env vars/code ids and inline examples; use for literal keyword bullets; never combine with **.\r\n- Code samples or multi-line snippets should be wrapped in fenced code blocks; include an info string as often as possible.\r\n- Structure: group related bullets; order sections general → specific → supporting; for subsections, start with a bolded keyword bullet, then items; match complexity to the task.\r\n- Tone: collaborative, concise, factual; present tense, active voice; self‑contained; no \"above/below\"; parallel wording.\r\n- Don'ts: no nested bullets/hierarchies; no ANSI codes; don't cram unrelated keywords; keep keyword lists short—wrap/reformat if long; avoid naming formatting styles in answers.\r\n- Adaptation: code explanations → precise, structured with code refs; simple tasks → lead with outcome; big changes → logical walkthrough + rationale + next actions; casual one-offs → plain sentences, no headers/bullets.\r\n- File References: When referencing files in your response follow the below rules:\r\n  * Use inline code to make file paths clickable.\r\n  * Each reference should have a stand alone path. Even if it's the same file.\r\n  * Accepted: absolute, workspace‑relative, a/ or b/ diff prefixes, or bare filename/suffix.\r\n  * Optionally include line/column (1‑based): :line[:column] or #Lline[Ccolumn] (column defaults to 1).\r\n  * Do not use URIs like file://, vscode://, or https://.\r\n  * Do not provide range of lines\r\n  * Examples: src/app.ts, src/app.ts:42, b/server/index.js#L10, C:\\repo\\project\\main.rs:12:5\r\n\nYou are powered by the model named gpt-5-nano. The exact model ID is opencode/gpt-5-nano\nHere is some useful information about the environment you are running in:\n<env>\n  Working directory: D:\\WorkPlace\\Project\\Git\\agentscope-ai\n  Is directory a git repo: yes\n  Platform: win32\n  Today's date: Thu Mar 19 2026\n</env>\n<directories>\n  \n</directories>"
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "你好"
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "你好"
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "怎么通过源码调试opencode，我想debug整个流程"
+                    }
+                ]
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_082ef3159a9a63470169bb5544545c819685cef056321d47e7",
+                "encrypted_content": "gAAAAABpu1VOg3OMYjORnukkyWszNag-DssSgvyurHXuEMHtcpqZ-GnLx8VgohvS36_sDC5diBRhHELfxaL3euhmPzW6Z7XbmBVr7u-4_4q_ISzxiXPfTr_OyPmP31L00vzgDYDtpbtCwo6j8phnbPkL_LU_o3q26-6IplwkWuMkDGcT0v-S82OsiJEzT0ebGtSOx4iLLeDvkeokLs_Wo0jaCBapuyrrLyhpPpKvGfUhFeNLWahRiEHanzCJK5GyauhgNFJgDVxCvv37fjpLR8oVWjZtY60PbBlfKwYagG_L7V9FKpb94J7d-FpcR1kWGR0sYrRlCFAwyaQ_RiRW39RXZyYzFw7TB-il_J15Fj1gFtZEActKM9-EL4NxEQcwrW006s-wMnDMcHK-BWGOrW5N8sNAvZ9iaBHakGLGaf_RowLn7XEwi_2dv01ZWVaTj9CiUOc8U-u6Gj5P7lsjqVmnTV_ZnwWcrpJpCyMml5oiVo5eAhrTuBLfbFpnDQ3uuct2uxVu63FOM9REll80Q6S4EzPefT0d2p64SWmc_uLzwt3V1ldoQdzCYNioQpDXFq5T32TxldOAIdLj-vcCRpQ-g-HdWtSAnR4lwy8WAasMTZf4ClNCvkLs_4YvGo3rYssSmtvXVNhnRyEH1lv8WEY6VV7NGCdIxpSwFdXa-Xfe9iIKMr9oS8Jdl0dJmeMlCSL2AMBreYWJSTajXnYRw2PbM_Wwg_orUTzzHuWLFt-gKocEkiucu42KRg1OoFVi4-PrjCjpsMNfUCfl-lP2dt8hb6-rCIn-0IQYRbEejyxg3zUi0R84jgFPcJdeWPoZC5scKyTo0wZZLN6Mwgkdmdbq5roGRdgVR8Kbc2x4mXPGiDGrfBEmquZqjVD1qYvskgH41YhB1Wt11jve78cyQaLJrPJsKC2IsOK8AxPpNcsjg3ngIZNK7ehaK411eQhgiwEB8322TGyAjzo7daQxyycEy0ortBJvXDHkUhxv64-VCTA2xyw2NbKrizQA-MyHFxKZ8touTh2TOI7PUdXQ2ipbm_SLvIwl197UHXgvxHCJKY5lgUaU2yhhOubBD_KLwWeIkCczGHEPSI6ZiMipBVFyFUcTBlHAl4JPt0W2H6nIeOlFvNwg62WHKsuYyUBmMLcvD_-FFwRCafil-16pIsZh2dQjCeNlC_G3gRqBeGcV4z4WPviizpE9wEaIE4f-9uRm6MV_YsincZT6nyBBaserhnlgWN0lXoLUlly104RkWmmnZb10DkgFDcAd44Tu_xJh9KgFyOItBoAj2zz4c-rqf10YCido1duuNe7lNkOf3TiGWc2xNi06DtrhUe4ipEckJ031gcuvvLOiW0Po07mVPLOfH5dCfeLxUc6mthnu2NNaWxVXNnm5x22ZvxgSHzAtoEccyoA3jCWtLYo7nfBTnJ5D2lKLm4K-La5wKzjzEPRp-ToEJDZ4SmM3kDxjlyI5Ye7YJgsZU_Ub0EsuEM2_0B7MDM8pWuyBiwyuW4RGhyn0XByLLTFz2sZ7axSYKwpUIuXjpTZDHsoEfgli_Fvn6wN3FAp2AUxT-LrEGUQoOhw9yLHztZt6bMSBBN3Y74D4pJC5me-n19j0A_mPNXJRp1Ea_65Fei04cFyKgIojJ1h1-6T0IJ5B8xJO0vT4IwMGiGr8imUE7T5vuy_OKKWv4vWv8mvJSvyZxhQ9KcgRTvNmOEgqLSqRFclHyhw63rE_ueR_lrsK8356haTOeNe_ECc5_P2ExhEuXLX3iY4KBenSuqE_K_aroRxOhJJ-igESHoLaihnG4A6US5ktHCL9vS_i_tYXjHKvjA7Tl0zBykM7HGQe3_-b7fjn-SsC4wUGWvSGLqQ5U7kldPGlq6Kl8o83TntLJLT9MW6NQqglVI73j9psulgcBEik6GbUuaFj0Dnv0rE4ik02EbaFZaxp4zSVCByxiVCPPzLc8v794YEOXdra1gYgTppz2T_dYQ695Nneem-S0hoKRLMt0X-g7_WltRIDIDsEYtizLtI83Cd9-YIPMKWXdkkvb1tKxgkxCOiAOefXcGeTdT13PV_oKK-IRP3svcLIOSYIMigxuYmfx7EkHeDM1Z2uCQjmjQdDiIPbFDhAAI40i971bNU9GHLSd3--vYXtmABd9QT3eF7p6pqbRFPmQ8C2LcOHwzu6qcD2aXPohNf4mIRl8_tREMZd5uRBIZkLSfsx5FJtw1GetLqrK53krqgHHZ6_QRMnixA1tRDNF5rMEu4B3epbbWQ-8GKsQ-6PD_aTqMMG-JlADSCHbwpo0QNwGv1K7ZcvsIvYHO5Of66jJBWTxnM2aBywgH0X-i0b4CSfICKH0KCpyV28zcOqepGV5iv9qb2DEml5ywK1BFZOVculBwDj3U5nO2GGcNtfZqb44gNY82_Ckjj5_nesgv5nowMpb0R4h1d5hi8ENojF98jKJmg8GZ2JQSEhMINettaK_rg042jaXJWE9TGKnvaWjInM-6SZysLDp3NNj0HJ790Ty6aYMrNzmeIx2nzjXQqY8NCZE-DAwxfmUa3wjYN7v6nKquss7SEB9uDysjb-VczTPsRvDcXUqwi05W4nzqOdTnf2L1tn8C5KR_AOdBNQC00mHnSQmyO3GoiRdSJszn-m7vKEgXxuU48bgV3PawR2iIfTwWsNPIb-yG0EwoVs9Rkz55u7jkgWBl3YvNYgazIvWMLhET1jfJQ3GD2FCMD3f3qeRsk95LC2It5qoyMIhow6Qg4JP3oFJ5_wRDjugpo924hEntG_9XGxdZtzjxYOVZx9p-2bGSycyGNi1A_ippToUbRzlIKVd3tYn2ryQk8gYLAjGKQ7cTdtXVGBduwghyRcqvrglH6KSUqfghRdkTwoUVFZ7c3rC_WTbxFlt62S7jWl2YnpwIKA04ZxpM07JHHTPnwJBFG4PWxyg4cEi0i3nS2LsczoFJytfYlSYn_j7AM8rsbq2XTWzN4GH6ijJuR3157DeYgLa0TjBpBjSMU4a5xBQifoZzyo2k_E1iPtxZJDCwF8oHkX3aW8bye1sOzVdIqaQYzwlPemGEdPObqlZCDCGhuSLnnYZa_vX5zHEzNsqUEIwYcHIjqf2suj4MhJXjFHiN_de2qfhGNkDZFGB-vzyyjQd52_17YWc9upAatw5Z3j9q41heVXkRco_fewmmiMzPBTmskdg5L8gGoigUCR_dzo_5LKou7So2_atcXMil-uLznz8I8ESNpBvdkku3_8b6n13-rcKBwbhs0o2hTFv_5tgPOcdqlNdGGh4hXDBW7rXAtco80y3csYEd4PTAc0TZ5xAEjykwZXaaL_yvjVJBJgRcq0ZloamB8UpooT5os_r68wbO5Q-hKiEA4iHOuv2HyiRQFVo0WcoMdS32FSr7UVQYzt6jFOohmMUl9bfyFPlma7OnPQk5UYPoBEJcBeunTjEMMmEWznA5-yYdQAoq-wfJ7cR5wDGexcneQ_0QGTIvPOO01S3bQZd6acJSaZ5jFiBg11O2j1mBJmhsjatYt_LX7EkBP_YUfV_mrc_KCj442hSa8k1yoC8P8Y6J8azCEKOgGDU1fQGWOzK14X2GMVakwsICgOE_hwIOaDJIyLf1zyxQEWR57XjF2inPDBvmg8RCrwln80vjmQLNRTVCjzUVivQVxQXdiZq72GRpLQriUut0wJQRFEUkEatgYKgeKaecgf9nA7QyzVuNMf8KJO41PXpDIUwGgK3tBsiYxqjjkCfP-sdpNUUN2cjiQ3M6cW1mjOAmu1DdhkkmK7aUbo-HMOOMyM_r-tI3opecxOwAQfT97eqo5j-mP6eufTI73T8t34UeBHYUtnt6SOj0uDvoHtQaUIFPpKR0pYfbxB_zcPupi9HbuIuFQiswfivIRESsYZ1sE8c1ySsbzkuNykmF2WDTblDnkhklb7fr4i4tjLjYwCYOgrmPD17luqkTiOzWKLdDxDnohgnqTgBZDQ4X3cullmUtkncC0QXHI6-VBJPTYA7ustcVSC2TT-sUSYJxAmTdNVCvVPCRrMoGq_oZVnL6pZmVLOW9ijBoyzmUhywtzD6wwR_lrSOOLJ2RaXb-l26oWlRHaIDrKxFueRR1Yf_JLvFr7NPt4T-zRPJsodlUdmpkq1vMCfxL8wH6CVbv461rtzjfn4kpysn0xkXXY8XoOWm_q1i8e1yqwyZluQsoadlwhyi5CW-5oB192tQtssCVQNFvTGaRvFGMz3YtsPzTJP6rxJOPhzzGuLnQvxH31mC9y7fUIVKuQYbv3IokKwlBxAeKzljbbpm4aZCdGCW4MMrIHWnQBdYKfENSzLg4PkDl5l0ak48nq8Jh9PvvYkN9rKYXf8W8ybMWnLdwnbcj_OU7L5YElNckvAb8RFLEPhq3FQ1z-upDostU_nCadNb3HuAHky3wpCQaYIk80SglURWcx5CQGgExJjQxI-sh5k6MuKUDA4F4PVHXI5FWH6K1DJ0EWjDG6MsBEtOE6JPiIRyYDY3vdNv7Wa8xYCTNuG_PudszFJsKRPL2ptJ4YqY_aekzPNxCuUpRKhuTNYFF5EejVQWXNOss7Gj_ZvbFzFH-6ebwddzgsaQv6qDFlzFy0QYPMnzMBzazGGTKv9MjCXOFdzdYwAZ-rhYSB-tolF9-VwmtUs96n1EQHXFAo1ndwxogmzAhq4plfDqbcqOElApcJGnlxL4WKYXtCBQrfjq-IpuFr79zVMNTG4vX48KmUb7tDu-xYLNlCRfijvpr1bNd1wilmn3ZyyhnQh-aktKXjOO10GK_Nhm9pjCOQyoQi0MHCmI0OicQS9ZUC44-Enq-e1HvT67mgSKKDvNXKmJh05AH8DnK-1SyAGu8lZLMggMZ10oiGsLFQB_YPnOwfbHDdVife9KXsZu7gO1oKWSckWo88Dwb1b9gCkE-Y89N2-zOuPCya1gvmsP5MM0lHUtyuoHTdtSMt0YJ4_BSYVSqmCqbDknQEoK_BvLEVKH8rl_dZLY8E3yHZ8qn2qK4DLfUXYPNJaZ-flOv11f0Napkd11YEmddia_Yhx5XU0vLH9VpYQxSX8D33uAFQau3Y5Jx7wLxMXz51N0oLqvzje-wHeFGs79R8ERTc-g8GtjZXnZuQEzQrzAY4pGIAKbbtZyxksREdz2cNsdU2prosvr0pXQjXDdrafiTceNhxWnJyAAIQkv33ThLahuzahtWgJQlCDjX0CVFGU6AA5xD1dR-inKfbxTVwl6E5pmuETKISRGvhXPsKIPiIoitrQ0Rps3v4ZKAIea6jmzM7N6ukZTM9FXilayUshgCFRKpu9WkPuNnFaknT1HQysJjkeyi4bllHx1tjA_TBuXZOolourP8O-kgyNBhoXZiQr2L-qLexo-kiDlQvbFeGb8ZpfBNSTXL4YlooQuawiOGbkHhdxkCGfsP9bfkyPZCcoWC1yg9TrnIxNHIbH6S67ckNnXqIqPaM9k8u0wW36RzH22emb-DNdCXF22k4ZtEw6ADqDjixUYWzwl_PWQMNtMKZ-D2UklHxWjvpjGttqyKw7ULM2JJqQtPTvPs_1ytCj-EJaEDvyQ71LH9jANlzMprCvHLVYZyHF2Jb4ndYOrvi8T-sOHPpXjwZVg59eXdzlX8Qr0tsDYJL8rVvGLaW1Aj33EXhMgm4lHaQS2htDJuDkDy1UIU1zSvLJvxXVW9w2IKxcpobBy69ACyGgiWftUuC0ojBbqAHv2V3Ibt4-LEbnG0onFbKTnRUUOpp4bJEwsEojIUMLtTLbCpG5F71AJ1vASxatK6y2Knn8dumn5C8j3g==",
+                "summary": [
+                    {
+                        "type": "summary_text",
+                        "text": "**Planning debugging steps**\n\nI think it’s good to clarify my approach here. The instructions suggest I shouldn’t ask for permission, so I'll go ahead with the most reasonable option and propose a generic debugging plan. First, I’ll identify the runtime, likely Node.js or Python. I can check by listing the files using the Glob tool, which helps me see the repository structure without making any changes. I'll run some commands to get a view of the top-level files and the src directory."
+                    },
+                    {
+                        "type": "summary_text",
+                        "text": "**Preparing to run globs**\n\nI’m planning to run two globs in parallel using the multi_tool_use.parallel function. First, I’ll prepare my calls for functions.glob with a couple of patterns. One pattern will be \"**/*\" to list all files, but that might be a bit heavy. Instead, I’ll also use the specifically targeted \"package.json\" to check for Node.js. Lastly, I'll run \"src/**/*\" to see everything in the src directory. Running these should help me gather the necessary information without overwhelming the system."
+                    },
+                    {
+                        "type": "summary_text",
+                        "text": "**Running targeted glob commands**\n\nI’m planning to run several glob commands quickly. Instead of the heavy pattern \"**/*\", I'll focus on some targeted patterns that can help me identify the project's structure without overwhelming the system. I’ll check for files like \"package.json\" for Node.js, \"pyproject.toml\" and \"requirements.txt\" for Python, as well as \"go.mod\" for Go. Plus, I’ll include \"README*\" and \"src/**\" to inspect the source structure. I’ll use multi_tool_use.parallel to run these commands and analyze the results for my debugging approach based on the identified languages."
+                    }
+                ]
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_9ix4moPNnG96d0dlU3t2s6uf",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"package.json\"}",
+                "id": "fc_082ef3159a9a63470169bb554eeaec8196807a705f668cb50a"
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_ky2x30HAjohGuva2N2EFYYcQ",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"go.mod\"}",
+                "id": "fc_082ef3159a9a63470169bb554eeafc8196859df5190e541686"
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_Ek4PcFe91I6VutSCyZ5LNA9q",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"requirements.txt\"}",
+                "id": "fc_082ef3159a9a63470169bb554eeb048196b2142bcb5af32336"
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_JfplttF3Zl3bYUVf4v0sWvgo",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"pyproject.toml\"}",
+                "id": "fc_082ef3159a9a63470169bb554eeb108196a6a0ca8f19aeaca2"
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_8JHT4FGtN4ZwXhlHpuYRX2Rc",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"README*\"}",
+                "id": "fc_082ef3159a9a63470169bb554eeb1881969e23f5a2855165ef"
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_FLAmHE3uUiXsptfkk5DGJqhY",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"src/**\"}",
+                "id": "fc_082ef3159a9a63470169bb554eeb248196bcac81af1347b410"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_9ix4moPNnG96d0dlU3t2s6uf",
+                "output": "No files found"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_ky2x30HAjohGuva2N2EFYYcQ",
+                "output": "No files found"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_Ek4PcFe91I6VutSCyZ5LNA9q",
+                "output": "D:\\WorkPlace\\Project\\Git\\agentscope-ai\\_06_RagAnything\\requirements.txt\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_05_LightRag\\requirements.txt\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_02_大模型知识体系\\_06_langchain\\_08_langchain\\项目开发\\requirements.txt"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_JfplttF3Zl3bYUVf4v0sWvgo",
+                "output": "No files found"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_8JHT4FGtN4ZwXhlHpuYRX2Rc",
+                "output": "D:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\12_a2a\\a2a_circle_use\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\02_数据结构\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\12_a2a\\README_A2A双模式.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\11_mcp\\fastmcp\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\11_mcp\\fastmcp\\05_advanced_tools\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\11_mcp\\fastmcp\\04_mixed\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\11_mcp\\fastmcp\\03_prompts\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\11_mcp\\fastmcp\\02_resources\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\11_mcp\\fastmcp\\01_tools_only\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_08_agentscope_sys\\10_multi_agent\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_05_LightRag\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\16_fastapi_deploy\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\15_multi_hop_reasoning\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\14_report_generation\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\13_jupyter_notebook\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\12_embedding_options\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\11_web_crawler_firecrawl\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\10_file_loader_docling\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\09_file_loader_unstructured\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\08_llm_providers\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\07_vector_db_milvus\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\06_cli_usage\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\05_deep_query\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\04_load_website\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\03_load_local_files\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\02_configuration\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_07_DeepSearcher\\01_installation_quickstart\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_06_RagAnything\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\11_反射\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\08_综合应用\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\07_高级特性\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\06_异常处理\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\05_模块和包\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\04_文件操作\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\03_面向对象\\README.md\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\_01_python_基础\\python案例\\README.md"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_FLAmHE3uUiXsptfkk5DGJqhY",
+                "output": "D:\\WorkPlace\\Project\\Git\\agentscope-ai\\src\\test\\java\\DateUtilsTest.java\nD:\\WorkPlace\\Project\\Git\\agentscope-ai\\src\\main\\java\\com\\example\\util\\DateUtils.java"
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_0c6a419d6bcf30a20169bb55513b308197ad1780da5df2d5ad",
+                "encrypted_content": "gAAAAABpu1VUr77zU4mASWCNOrJpscnUuZmXCR8EGfLy4trfyq7esvxonY3KI4RN9xsvOfw7SP5fRmNHpaWeMil3tjUUF8bVo1H14lQdMMoimALUIlf_uiTYQrgak6smF84PiQC1nc__c3bM-BeSJmhdWFVWaE1y_s_0A5iIQ8pkDxW6UoV9FDH52yI88fWYihBIg_SGaLDGkE0xLg-WcyBWwWEfNQz4I-DYWBKCURAUo_G7YPOueHhOGZ2c8wtiN1FcjhhKiySzBBBvA8893fAfK5c3P-16PUnQuBgZwQblZ6493_G_PIz5o4nRTFm3gzB7j5KAhY99Fac_qSziYVrpTSQOM5LBEEVV75A8aHv27WWMTtAoOWbK6VdkdUYV-1Y0AU0-OhNo8Uk78vCrFNGCaewGCMeiv5Bc2t906Eub60CC-Dx0K4ODU04bWtyEKjAOB9gvFUAANNz8a9TESjJXuq-iIXhmVcSNM2Z2_DGfp9bCixkRlV_8wEYKh2Qqk6AbZKpNH2CCM3R5dDYu-w2I_PTqmVVW68JTjAn6hklR6MEkGxrgjPieauRdFf3vvszgPfzR-Lhtlon9oCtsLy087wBjPVW-vG26H8k5iVuYaY5JvW-pAkuzvexy3SXUoOEe-P5N3JPz5gLEVKkw78SYZvz7-6Fd89ZNsgwtlTKfwH_BCywQwE0ZF4_MVJi6mAN_XbO68qWBv-aVyx7rjETdBaZDFPgmz9ta3PvxGVDmKw2LfWEWA8tk_Ani6J3dLr4eqt8U8-MxSBp1BoTTk6wXuOFNLHkNaffrvkXFgD1V651-w5x-AwJh_vWVuS8gT2YiRX70iPEP8KL336WyRPL7jYUYq2v76rd6_gqzgrtwhWf4rnde7CUwwWVuKUmnGBOnAS2VAPtElIBJzfuKoZZuYixGNqb_a0hIBhuE_rsE4UbTh1tiDkzF1W8oWe7zLHFZgsTIgt4A_lB2nOF5uAi-wHwFJxTcVD_3vXPra-WTziawEKykg0U8OJcVgR8U3bPz2hIWrRido3cAjDa585ULbpQgMc7PVXOyr3BtgciTFZ622fvBCQhEBRuaiC4YdxiOkB21E3pyMeqeaSaNbHHroEKPS7Re7b8Ii3Pwn9I3tLtLkdgm53kOYpLK2HY7MWUMKQ8jzhYsKLO5N_R-BE42x1LlADWNZSxDl2Dec3uj7OOdneQz9-X3bq16x8pkk2uQhuRXu-AcrD72yTmGbTyxo8lR9A71x1yCzmvJhDhvREOKoFdcgA97WZGXXrlMbhbexqvHijGsSTV7leNnPJZdmWBypYQcDzUS9ayb3nwcSNqBTkvH9zNOh7FFIxh7Mon8U2TqJBCp1D9wkeVReibUXb8l_iFTAJKlcIe2uGXTxZk6FEay0BJe8bDCQG6Xy2iQKXcwKz84YpxubT4cN2tUryAFqmEIICratkiRcunkYbn6_ACf4ZEPpLMp7E-SYeD40trH_HeHyXX9_0MQ_V11CSo1bNYRl5FM5KU_NzntS_qv6xUeRKXkOXE6-Jarts2Qt3ilCSC8fkuVHqaRQ3HLlG3ewYZyfruyZdjwh3Zxm8X5La60yvlbVsBf1o-djYmhXYL9FU5xwbC3Z9xhY8E1M3mk5kJIbXcGFKfEN4E2FCU-K9LASL0O2zGIqZHgchx2iRXM1z5_PXBSPGBKww5NQcZiMsL_5iG3xNsd-Ysa3NeSwnwrj5fFzq4Bc1RX8eyYrpVCwFHNyFp2PQhdydF_loZP3RD3saJywlhyKTxi13TXNWBL1LBQOsFFl3_olvRjKfzCwseUndSN6BdZ-B7Ys20uxcXdNpIurQ1p3PW96VXuZlHy_nNUpiEL-gHDWQo2JRH76cECJjRnLxxtLXNwv5hmlzMbXdjopYI6Nye3bNthnVHurG9A_201CqEmPLkxO8s3ZX1hW8B-ohG26x8XVZDRD7fiZIRLpBSd1AFSrBE6s_xKIs2IUltY6QbMWM5fBcJfi8HYvizFkZ0NWGEp1su2g-D0EyOYiYqnPWd2v2Xn0sQ9izGWwxfxU5x3x3a8xoik5Dzmi6kFvCTOfrKpEi1tCPVYLIj2uge63IiaVaZkE8D-VGw6vt65DMn9jNnrOlOubIVs7Bth4cfr2yTLbsEKYYZrFQ==",
+                "summary": []
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_s6LNQfUUUuNN3d0GuXqTFv5z",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"pom.xml\"}",
+                "id": "fc_0c6a419d6bcf30a20169bb555466548197a98c147e0d5d53e5"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_s6LNQfUUUuNN3d0GuXqTFv5z",
+                "output": "No files found"
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_5fF8bYqe5eaZk0VNeQs9Jn6K",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"build.gradle\"}",
+                "id": "fc_0dad1883e9ed59c80169bb555711ec8196a4f35de7cee26820"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_5fF8bYqe5eaZk0VNeQs9Jn6K",
+                "output": "No files found"
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_08a3539784e0d9aa0169bb55593c0081939760716abe96ebff",
+                "encrypted_content": "gAAAAABpu1VbA0NGrdSzjzeaLRegBSGUsOl95f0YQgnSubORm4FHr4M0FSHUN9sR0vFIg7Tzaye3W7sZJeU5f_QnstXLTzWWNXL4Bcwwia2S1nZdXESOAUazrZKBmq2FY6cfP4pmeEpw7ZhuCErk1OLUhEzxp-q50QQ0c9j9n2vWF1IlPknDYHc00NFCChkJ4Ptb4KNHKl3Hr2qp5Y_w_BdYizxA4Gv1rd12GV_thIQjQoktEvKYazUCxZZ_R2g-OXPLcXpU9YmVNOfdLw1-WvRsRSDFVkmh-YEgoaFzUVQsD7tH3vbWfN2EThWmFGPftceugSkMeJSxvSybOOc3Uf-gSvRwwU-tvYuygFor-Sjjctn5jZjsJtZOH3wBp2Tk980rE3cS5VZ3uKYv5gaasuYXWYGJ32-2mmUpvYTFW6vjyk6isxtt3xIgr7mx4GZWOVunr3dDJuJlqZiOfQ33eShJs4EoPbfzAhxi714OLKFVKDEOYM2kKL2ME0ZQh4e91ljYajVsj3_VPGSCT8g0Fc0d3qmsCgNSrIegnblpsPAjWdWOa4wlvYeaj0bG2NpSSEimGLl6QEdnmvyFWr5ejLGieLcGz7hoOfwOJGRBmdOdMXB2DD2y0b57-LjT0B2u54nO8cY0Y0MEbETogv64cLqApovimGQ1emJqHxO7tKaVt-IuJVm1iUSJ7M64K4WSB64yRHaijo5vZPuT4QRNJnyGTAfmFTDdQCU3lzLZuuKH_6bpKZbdA_zzI7Aw_WovA3Yjy3_KvH5fqhU6NG4apGbIurlso09MjXJa6GRLnloaCDegeOKlvLwHbzcmFvGIQGw4lH8Un6om3jIBgaPj-w7Kyeqpt-jK64jJd9kQI0AY2bQQJDTqgc9bskVuOtQo_-DQoJm2AeRugGjivKgMSruwd-RQWNG3NDo75zPh9AQ0WkQSG7ZHWeMcnDwiSBDPjesWi8_jCcqjj5-G8-ZHs-Ijek3pA3yvf75qVQi0h-mHF-3kfM-H0nieF0u2bef_7R7yttpuZgMqB7TcHG1ThFr47Cm6nBnJXJBf7S2J5bhV4kyvBSyRHvbc35qr-4wtQIKVXCK7QUdHYz1ZLnaZzCUWhqOS4jQi4KlT-zwcJGZFevilFCMnT0LmswD8EGLzpLz0H8h2dwfzTtPrH1Xelm4dt-7MMKx0igMQNlR3T4IyepL-II3rRoWkoQJQB1fXQPB6Qc43q3Z5KxZ_YGQA9jWUPAschZPpvePV3IqH5xb5fQgOGnWsD-2eV-zYMxmdGLUQun4hWsIyrMf_pDpRr4O3phBdeQ-tNNnIfaBoGFI7zcWmSP56OfbwNq0I2zDR4mVRkjsa-o_D_fLJT7tk_BJVa0VXXfq-t0XRY9OigBvC2Yk9KFLZhOATMsKjJ3pnWzVltfoCCNIw_EMk0wCpjlOl5qV4IgztNYN7XktYOHfowAK-UZBpeR0=",
+                "summary": [
+                    {
+                        "type": "summary_text",
+                        "text": "**Exploring Java project structure**\n\nI have a Java source, but I'm not sure if there are any top-level build files available. The path indicates a project, but the build files might be missing or located in subdirectories. I think it would be helpful to read the directory structure and use the tool to read specific files. For instance, I’ll check “src/main/java/com/example/util/DateUtils.java” to better understand the code and its dependencies. Let’s go ahead and read that file!"
+                    }
+                ]
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_3gxxX34J1D4g4hGqq1RbYsrn",
+                "name": "read",
+                "arguments": "{\"filePath\":\"D:\\\\WorkPlace\\\\Project\\\\Git\\\\agentscope-ai\\\\src\\\\main\\\\java\\\\com\\\\example\\\\util\\\\DateUtils.java\"}",
+                "id": "fc_08a3539784e0d9aa0169bb555b3bc08193a0e1838ebba0d07e"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_3gxxX34J1D4g4hGqq1RbYsrn",
+                "output": "<path>D:\\WorkPlace\\Project\\Git\\agentscope-ai\\src\\main\\java\\com\\example\\util\\DateUtils.java</path>\n<type>file</type>\n<content>1: package com.example.util;\n2: \n3: import java.text.ParseException;\n4: import java.text.SimpleDateFormat;\n5: import java.time.LocalDate;\n6: import java.time.LocalDateTime;\n7: import java.time.ZoneId;\n8: import java.time.format.DateTimeFormatter;\n9: import java.time.temporal.ChronoUnit;\n10: import java.util.Date;\n11: \n12: public class DateUtils {\n13: \n14:     public static final String DEFAULT_PATTERN = \"yyyy-MM-dd HH:mm:ss\";\n15:     public static final String DATE_PATTERN = \"yyyy-MM-dd\";\n16:     public static final String TIME_PATTERN = \"HH:mm:ss\";\n17: \n18:     public static String format(Date date) {\n19:         return format(date, DEFAULT_PATTERN);\n20:     }\n21: \n22:     public static String format(Date date, String pattern) {\n23:         if (date == null) {\n24:             return null;\n25:         }\n26:         SimpleDateFormat sdf = new SimpleDateFormat(pattern);\n27:         return sdf.format(date);\n28:     }\n29: \n30:     public static String format(LocalDateTime dateTime) {\n31:         return format(dateTime, DEFAULT_PATTERN);\n32:     }\n33: \n34:     public static String format(LocalDateTime dateTime, String pattern) {\n35:         if (dateTime == null) {\n36:             return null;\n37:         }\n38:         return dateTime.format(DateTimeFormatter.ofPattern(pattern));\n39:     }\n40: \n41:     public static String format(LocalDate date) {\n42:         return format(date, DATE_PATTERN);\n43:     }\n44: \n45:     public static String format(LocalDate date, String pattern) {\n46:         if (date == null) {\n47:             return null;\n48:         }\n49:         return date.format(DateTimeFormatter.ofPattern(pattern));\n50:     }\n51: \n52:     public static Date parse(String dateStr) throws ParseException {\n53:         return parse(dateStr, DEFAULT_PATTERN);\n54:     }\n55: \n56:     public static Date parse(String dateStr, String pattern) throws ParseException {\n57:         if (dateStr == null || dateStr.isEmpty()) {\n58:             return null;\n59:         }\n60:         SimpleDateFormat sdf = new SimpleDateFormat(pattern);\n61:         return sdf.parse(dateStr);\n62:     }\n63: \n64:     public static LocalDateTime parseLocalDateTime(String dateStr) {\n65:         return parseLocalDateTime(dateStr, DEFAULT_PATTERN);\n66:     }\n67: \n68:     public static LocalDateTime parseLocalDateTime(String dateStr, String pattern) {\n69:         if (dateStr == null || dateStr.isEmpty()) {\n70:             return null;\n71:         }\n72:         return LocalDateTime.parse(dateStr, DateTimeFormatter.ofPattern(pattern));\n73:     }\n74: \n75:     public static LocalDate parseLocalDate(String dateStr) {\n76:         return parseLocalDate(dateStr, DATE_PATTERN);\n77:     }\n78: \n79:     public static LocalDate parseLocalDate(String dateStr, String pattern) {\n80:         if (dateStr == null || dateStr.isEmpty()) {\n81:             return null;\n82:         }\n83:         return LocalDate.parse(dateStr, DateTimeFormatter.ofPattern(pattern));\n84:     }\n85: \n86:     public static Date toDate(LocalDateTime localDateTime) {\n87:         if (localDateTime == null) {\n88:             return null;\n89:         }\n90:         return Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant());\n91:     }\n92: \n93:     public static Date toDate(LocalDate localDate) {\n94:         if (localDate == null) {\n95:             return null;\n96:         }\n97:         return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());\n98:     }\n99: \n100:     public static LocalDateTime toLocalDateTime(Date date) {\n101:         if (date == null) {\n102:             return null;\n103:         }\n104:         return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();\n105:     }\n106: \n107:     public static LocalDate toLocalDate(Date date) {\n108:         if (date == null) {\n109:             return null;\n110:         }\n111:         return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();\n112:     }\n113: \n114:     public static long daysBetween(Date startDate, Date endDate) {\n115:         if (startDate == null || endDate == null) {\n116:             throw new IllegalArgumentException(\"Dates cannot be null\");\n117:         }\n118:         long diff = endDate.getTime() - startDate.getTime();\n119:         return diff / (1000 * 60 * 60 * 24);\n120:     }\n121: \n122:     public static long daysBetween(LocalDate startDate, LocalDate endDate) {\n123:         if (startDate == null || endDate == null) {\n124:             throw new IllegalArgumentException(\"Dates cannot be null\");\n125:         }\n126:         return ChronoUnit.DAYS.between(startDate, endDate);\n127:     }\n128: \n129:     public static long hoursBetween(Date startDate, Date endDate) {\n130:         if (startDate == null || endDate == null) {\n131:             throw new IllegalArgumentException(\"Dates cannot be null\");\n132:         }\n133:         long diff = endDate.getTime() - startDate.getTime();\n134:         return diff / (1000 * 60 * 60);\n135:     }\n136: \n137:     public static long hoursBetween(LocalDateTime start, LocalDateTime end) {\n138:         if (start == null || end == null) {\n139:             throw new IllegalArgumentException(\"DateTime cannot be null\");\n140:         }\n141:         return ChronoUnit.HOURS.between(start, end);\n142:     }\n143: \n144:     public static LocalDate addDays(LocalDate date, long days) {\n145:         if (date == null) {\n146:             return null;\n147:         }\n148:         return date.plusDays(days);\n149:     }\n150: \n151:     public static LocalDateTime addHours(LocalDateTime dateTime, long hours) {\n152:         if (dateTime == null) {\n153:             return null;\n154:         }\n155:         return dateTime.plusHours(hours);\n156:     }\n157: \n158:     public static Date addDays(Date date, long days) {\n159:         if (date == null) {\n160:             return null;\n161:         }\n162:         long time = date.getTime() + days * 24 * 60 * 60 * 1000;\n163:         return new Date(time);\n164:     }\n165: \n166:     public static boolean isToday(Date date) {\n167:         if (date == null) {\n168:             return false;\n169:         }\n170:         LocalDate localDate = toLocalDate(date);\n171:         return localDate.equals(LocalDate.now());\n172:     }\n173: \n174:     public static boolean isToday(LocalDate date) {\n175:         if (date == null) {\n176:             return false;\n177:         }\n178:         return date.equals(LocalDate.now());\n179:     }\n180: \n181:     public static boolean isBeforeNow(Date date) {\n182:         if (date == null) {\n183:             return false;\n184:         }\n185:         return date.before(new Date());\n186:     }\n187: \n188:     public static boolean isBeforeNow(LocalDateTime dateTime) {\n189:         if (dateTime == null) {\n190:             return false;\n191:         }\n192:         return dateTime.isBefore(LocalDateTime.now());\n193:     }\n194: \n195:     public static long getTimestamp() {\n196:         return System.currentTimeMillis();\n197:     }\n198: \n199:     public static long getTimestamp(Date date) {\n200:         if (date == null) {\n201:             return 0;\n202:         }\n203:         return date.getTime();\n204:     }\n205: \n206:     public static Date now() {\n207:         return new Date();\n208:     }\n209: \n210:     public static LocalDateTime nowLocalDateTime() {\n211:         return LocalDateTime.now();\n212:     }\n213: \n214:     public static LocalDate nowLocalDate() {\n215:         return LocalDate.now();\n216:     }\n217: }\n\n(End of file - total 217 lines)\n</content>"
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_0087a1bc05950f5c0169bb555e05e88195b45340a9c9ca0eb1",
+                "encrypted_content": "gAAAAABpu1VfA2R2gP9P8ey9Kd3SANxUaraF57vaRdgOngWyeucJscFG0WgwrXMPGYitQju61ISs_hRmJthm5JZtNrhzsv8Jwc4_Vk2y1O-AiWpWWdvdy0EHo3I8nH2jYR9rJchMemvhLqONz1ogBHYvwPKn_JO4VjAJ5brp1f03xF4EEZqBWqAgWaS79cQRdvMT0WN1AKW3fG1J_7-gc57qrnu4UaULf60JhvvqcKTGHDvk-UKPaYgP17d7EwF_1jDraZx1m9POMavqP_leSwesASHgfNoMqKngbd9QZg5jngugbyK3wTRorCyN2eR4dn5BDp7kLVnn77ka143DQUtRpLdXZjem2MWiiEaiTU9bpwH8OdPlov23tmhu0DpecqTaXdSLBRtQVittVg0jZJFlFBNcXOyX-wSWoO0ay4e_7h4I-pTko_BptSH32SIxk0g_iTDfHtMepx72O1ddGvauh9AHPfZDEZccsG2z37dlHCPNxl51S8d6ks0S-AKoYL-MYTGXTYZj4A2L5_pLYpC_FOZvwv7YHaRFaY0SvXBvGzBoBy18oYnNhK-R_iFMhRybYW25xnNgHx2wRk6_AFbhIxEqjfV7ZFvdfJvSv_v6aFOifGd0U_eS_-JjWPcOhg6cBQyFGCHsfNXlgXO_0pRTI4GndQNX65oen4AqmleAygD7FfigQXWooCFWV9GKAb_R8DEh1JsApPdwrxHb2x1oJuJq6Iw__6j2UMEgqfPaYEcAVW3qyaRXyN91WaOXkhyUBUEt6UUjYbWDPKGkUkYd6wtO5YgV7eOLvc7S9aZSqDdjBjTJc3W5N6bu7a49gpq0JA0Hb0aJPAqOOQDu8cQipBaAbCUYQ_eWFLWvrmJNBUQ6y_zeX49YjCEyrEEBCDyjeDmWA1lEgcC1B3zqqCJWHRrfkwFcweI4_aICc74pt8mXs1XG-xN_iBuTOGShjfya5KxtfG22ApPqNbbf4Ua1NCVHPNEo-qO07G44YouAsUUO8W5ttgc=",
+                "summary": [
+                    {
+                        "type": "summary_text",
+                        "text": "**Reviewing DateUtils tests**\n\nI’m looking at the Java DateUtils class and noticing there’s a corresponding test file located at `src/test/java/DateUtilsTest.java`. I like the idea of checking out the test to see how to properly run the tests. I wonder what specific methods or functionalities are being tested. It’s important to familiarize myself with the logic within the test to ensure I understand how to execute it effectively. This will help me get it right!"
+                    }
+                ]
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_YG2OPb7BqvwoSML1ERSfylO3",
+                "name": "read",
+                "arguments": "{\"filePath\":\"D:\\\\WorkPlace\\\\Project\\\\Git\\\\agentscope-ai\\\\src\\\\test\\\\java\\\\DateUtilsTest.java\"}",
+                "id": "fc_0087a1bc05950f5c0169bb555f85e0819583702bd2daf48289"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_YG2OPb7BqvwoSML1ERSfylO3",
+                "output": "<path>D:\\WorkPlace\\Project\\Git\\agentscope-ai\\src\\test\\java\\DateUtilsTest.java</path>\n<type>file</type>\n<content>1: package com.example.util;\n2: \n3: import org.junit.Test;\n4: import static org.junit.Assert.*;\n5: \n6: import java.text.ParseException;\n7: import java.time.LocalDate;\n8: import java.time.LocalDateTime;\n9: import java.util.Date;\n10: \n11: public class DateUtilsTest {\n12: \n13:     @Test\n14:     public void testFormatDate() {\n15:         Date date = new Date(2024 - 1900, 0, 15, 10, 30, 0);\n16:         String result = DateUtils.format(date, \"yyyy-MM-dd\");\n17:         assertNotNull(result);\n18:     }\n19: \n20:     @Test\n21:     public void testFormatLocalDateTime() {\n22:         LocalDateTime dateTime = LocalDateTime.of(2024, 6, 15, 14, 30, 0);\n23:         String result = DateUtils.format(dateTime, \"yyyy-MM-dd HH:mm\");\n24:         assertEquals(\"2024-06-15 14:30\", result);\n25:     }\n26: \n27:     @Test\n28:     public void testFormatLocalDate() {\n29:         LocalDate date = LocalDate.of(2024, 6, 15);\n30:         String result = DateUtils.format(date);\n31:         assertEquals(\"2024-06-15\", result);\n32:     }\n33: \n34:     @Test\n35:     public void testParseToDate() throws ParseException {\n36:         String dateStr = \"2024-06-15 10:30:00\";\n37:         Date result = DateUtils.parse(dateStr);\n38:         assertNotNull(result);\n39:     }\n40: \n41:     @Test\n42:     public void testParseToLocalDateTime() {\n43:         String dateStr = \"2024-06-15 10:30:00\";\n44:         LocalDateTime result = DateUtils.parseLocalDateTime(dateStr);\n45:         assertNotNull(result);\n46:         assertEquals(2024, result.getYear());\n47:         assertEquals(6, result.getMonthValue());\n48:         assertEquals(15, result.getDayOfMonth());\n49:     }\n50: \n51:     @Test\n52:     public void testParseToLocalDate() {\n53:         String dateStr = \"2024-06-15\";\n54:         LocalDate result = DateUtils.parseLocalDate(dateStr);\n55:         assertNotNull(result);\n56:         assertEquals(2024, result.getYear());\n57:         assertEquals(6, result.getMonthValue());\n58:         assertEquals(15, result.getDayOfMonth());\n59:     }\n60: \n61:     @Test\n62:     public void testToLocalDateTime() {\n63:         Date date = new Date();\n64:         LocalDateTime result = DateUtils.toLocalDateTime(date);\n65:         assertNotNull(result);\n66:     }\n67: \n68:     @Test\n69:     public void testToDateFromLocalDateTime() {\n70:         LocalDateTime dateTime = LocalDateTime.now();\n71:         Date result = DateUtils.toDate(dateTime);\n72:         assertNotNull(result);\n73:     }\n74: \n75:     @Test\n76:     public void testDaysBetweenDate() {\n77:         Date start = new Date(2024 - 1900, 0, 1);\n78:         Date end = new Date(2024 - 1900, 0, 11);\n79:         long days = DateUtils.daysBetween(start, end);\n80:         assertTrue(days >= 10);\n81:     }\n82: \n83:     @Test\n84:     public void testDaysBetweenLocalDate() {\n85:         LocalDate start = LocalDate.of(2024, 1, 1);\n86:         LocalDate end = LocalDate.of(2024, 1, 11);\n87:         long days = DateUtils.daysBetween(start, end);\n88:         assertEquals(10, days);\n89:     }\n90: \n91:     @Test\n92:     public void testAddDays() {\n93:         LocalDate date = LocalDate.of(2024, 1, 1);\n94:         LocalDate result = DateUtils.addDays(date, 5);\n95:         assertEquals(6, result.getDayOfMonth());\n96:     }\n97: \n98:     @Test\n99:     public void testAddHours() {\n100:         LocalDateTime dateTime = LocalDateTime.of(2024, 1, 1, 0, 0, 0);\n101:         LocalDateTime result = DateUtils.addHours(dateTime, 5);\n102:         assertEquals(5, result.getHour());\n103:     }\n104: \n105:     @Test\n106:     public void testIsToday() {\n107:         LocalDate today = LocalDate.now();\n108:         assertTrue(DateUtils.isToday(today));\n109:         \n110:         LocalDate yesterday = today.minusDays(1);\n111:         assertFalse(DateUtils.isToday(yesterday));\n112:     }\n113: \n114:     @Test\n115:     public void testIsBeforeNow() {\n116:         LocalDateTime past = LocalDateTime.now().minusDays(1);\n117:         assertTrue(DateUtils.isBeforeNow(past));\n118:         \n119:         LocalDateTime future = LocalDateTime.now().plusDays(1);\n120:         assertFalse(DateUtils.isBeforeNow(future));\n121:     }\n122: \n123:     @Test\n124:     public void testGetTimestamp() {\n125:         long timestamp = DateUtils.getTimestamp();\n126:         assertTrue(timestamp > 0);\n127:         \n128:         Date date = new Date();\n129:         long timestampFromDate = DateUtils.getTimestamp(date);\n130:         assertTrue(timestampFromDate > 0);\n131:     }\n132: \n133:     @Test\n134:     public void testNow() {\n135:         Date now = DateUtils.now();\n136:         assertNotNull(now);\n137:         \n138:         LocalDateTime nowDateTime = DateUtils.nowLocalDateTime();\n139:         assertNotNull(nowDateTime);\n140:         \n141:         LocalDate nowDate = DateUtils.nowLocalDate();\n142:         assertNotNull(nowDate);\n143:     }\n144: \n145:     @Test\n146:     public void testNullHandling() {\n147:         assertNull(DateUtils.format((Date) null));\n148:         assertNull(DateUtils.format((LocalDateTime) null));\n149:         assertNull(DateUtils.format((LocalDate) null));\n150:         assertNull(DateUtils.parseLocalDateTime(null));\n151:         assertNull(DateUtils.parseLocalDate(null));\n152:         assertNull(DateUtils.toDate((LocalDateTime) null));\n153:         assertNull(DateUtils.toLocalDateTime((Date) null));\n154:         assertNull(DateUtils.addDays((LocalDate) null, 1));\n155:         assertNull(DateUtils.addHours((LocalDateTime) null, 1));\n156:         assertFalse(DateUtils.isToday((Date) null));\n157:         assertFalse(DateUtils.isToday((LocalDate) null));\n158:         assertFalse(DateUtils.isBeforeNow((LocalDateTime) null));\n159:     }\n160: \n161:     @Test\n162:     public void testCustomPattern() {\n163:         LocalDateTime dateTime = LocalDateTime.of(2024, 12, 25, 8, 30, 0);\n164:         String result = DateUtils.format(dateTime, \"yyyy/MM/dd HH:mm:ss\");\n165:         assertEquals(\"2024/12/25 08:30:00\", result);\n166:     }\n167: }\n\n(End of file - total 167 lines)\n</content>"
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_0c3c0b86084cbc4a0169bb55629ec481908e3772b8c1111519",
+                "encrypted_content": "gAAAAABpu1VlPSbhsHWsunzabrn7LFWJ8aGaqL5jNJVb8CxQLzTgHggURS2SECUxAZMfi65kP7iqoWVgdx7GBr7qByW5d-sznLR6qpDvHhfqJfZlB-Qp-a_c4jQdITt-brDXhO6flR9823lzuQw1VqPmDKNEIsm3TSenWgfY9ToE0D56EHImqeFZWo9-DzlfX6lW6AXu3qR79v7VBIF8XOgJjYworhInA97MX4QpW8Kbrz6bXzmF6vj1NMSIkRvtCbzzh1UlhOXjDu38XCQwbNiBeln-sVVNJAXbzTeR3REOFXzxVlkBOSfAyq4WqPiPMGBtBMjQ8DxFN4Lbe7QNyWxCbFyAcjvc-L-QV9aokIc4a0KI0L7fJlLHezsQbmYg3XODottdvjFjhOHDLrQjW_6K4nWQfkSLCO1pSiASI1g52SRXnZAmVX3bvGE1_l2rubs0igxQVfSwcm1_4VGWaz2mLdZctCT-qFJMY9yZHZIL6YT9ZoL8JT4Hxv7Fre-lRHZztUhbMVqt6oyF0DKizb2-MBh6R9PN4GB7DiE166BYzda7fJVT_AbGb3xbw8GjEbqRbSSmW-OhX_7hUG6rRvmJCPL_vauPWcRIRYK8WFowbio4BzhojjOLETB0PK6Z4yC4qIqm-PnboB2O4fgzJP65NSzICvzprupx-924qGmI9C5ivE_4ToIQeURfhOkcPMh47K-ydtotvCjTh1SXbx9a1YzvoJjshEvc4weVmVo15Mm6QkW_zE1shpOf1tRGxJUieeKefOchSDOgqOwulhO5bwl_cr5-2Auv0qhC-8pC3gzthR3Ri-kJxW735vJJVLcoJ8E3SY02sbdZ01959wjBx-wDlOOMASrduXbXM41gDsZnbYLGH51atxuySeDy5vQpLOUowjlKSLHREcmcDFkFPD7T0oCc5CMMA4UChUfcLtoKFKga2J9Cr9VU4EPzmwu0tm0DO9iuIg1Kf3mrP_YW55DFtkd040onkAQHhEvjk08ZHDpA2-AV3R7zx5DU2T_4SSMAqZjx0jUWDL9rfbi3Vru7U8HwrreTa5hkYXM0N6L_H6gH088GrOW4PTDYPX-eCB0cBZxxsbb7jWsDXvmEmFLgXgN14dXw6WT-94vPtyQ651vS7P_yrtS-InA2ZoWjLi-oEYgF2ZB_mClpNRT7fplAM4r5r064AoXWdq7Jkqi1GWvRtCHxIrevDotIqo8oZpLiw8djA0dr4ib1CoD-h2LyuUWRJL7eCrV80lfWWPQoKuyxTxAR2FhnLbbpofj4CodYBQUp5AVcQNxsEykQGLbvWaN3cQ==",
+                "summary": [
+                    {
+                        "type": "summary_text",
+                        "text": "**Exploring Java project setup**\n\nI'm looking at a Java project with JUnit tests, but there's no top-level pom.xml file. It seems there might be a \"src\" folder for Java sources. Building might need a build tool, so I'll check for a Gradle wrapper or some other tool in subdirectories. I should search for \"gradlew\" or \"mvnw\" at the root. Let's see what I can find there!"
+                    }
+                ]
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_aPiYTcyi4h6BzIhaPnyhnVGU",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"gradlew\"}",
+                "id": "fc_0c3c0b86084cbc4a0169bb5565237481909cb1dd0e12167596"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_aPiYTcyi4h6BzIhaPnyhnVGU",
+                "output": "No files found"
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_Y3utrKY0hHkSU33kzE9o7CJe",
+                "name": "glob",
+                "arguments": "{\"pattern\":\"mvnw\"}",
+                "id": "fc_0eda87efa8fc4d4a0169bb55689bb88193afc30110a7aeee27"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_Y3utrKY0hHkSU33kzE9o7CJe",
+                "output": "No files found"
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_0770191ec5e162b00169bb556ab7008190a7bcb513cf52ac04",
+                "encrypted_content": "gAAAAABpu1VvvKlMN_6yyQJJ6-h7BApAd0STQPlheV_nK4lf_e8aQOjw0nS9k7tDc2tttkmq1SCqp_exkf10s_heS7yi8LL0ywMs-nl9an44k9iyLV0CD3r9b5lgb8pNLPTIwl3RmaIMZegG_7DJmo3pDKQHAnozUNzixpepcuNVjCaoXnLegqHbmdCkmA0943BHO0muJmkNfBGXnrTCRwv6DVLbcXb_ssTK4iWRqxUH1yhgiRQDEaHA9YEbGDzHYrpSO66obUm72S-PU4MhnvTw4VNNpybpA7tMzeEUxipLI8HdwAWGYOVKwKjOAHi81rL9q78Q76YLBkPK4TFSYaE5wFKIAyRG172cH1FNGztZaYCjsSYiW44J8x7E-cUE-Y7yeVd7PlAyQ0WZlnTw0YWrB5PeqKs8f-7CZ6r-reVOe_INpwPKCh_p12zTu7yPukxDkbIqXB_Uhn5_X0aA3ISC_cNJcSgGLtZImhcnmNkOssHVy3ihSkDaeam-A3R03EDSn5TeSLxcZfrQLRrjb8rSlLQHWc6Cvp7HgoSpXucEHWe2c4gCciHz_lU3eWW_r9gMyObq6bRN-TLzpv5qsakS1e5Loodr7uLSjJ3PsmFMxwWYOgIdj8bkp7lgFCPhEA9MICdvPyKO8Aqtz20sDUKxumfsQYCgs5qE9WNA9k4Wb1R97mnHofXaWKutLeoDEhIAuJBhNpZ-5AIjZFXb7K1PXChej7xjx79qkJ_HsF1BvUC_BW8wrjNJlZe1OsDI-i5KiSAeqWlYUIMGxI6O9ySePDmKkMvuAwU9Xq8r8P2DA1cUigVYpvN2j8Enl-oMHFYIcAhgNA5aXSJaYY2XEQEunNrDeCQ86n6LOqPpaUD_h8vlc_Nw6yM_daZz592xeu47Ru25aNrPOn1HarQBvdPrEGmDzj7UHgpJahgRQly25t7Yy1UpzfIHWbXV5CBwmvXpSZORfT5yF0mAmdTenwa6dXBebzZS_FstumwsSQVM9a3BbLAlT5rHODBQHkkHDnFM53WTb86EuRbRY6N79sm8ZP1e9yL4ZavY3SqlszFpHpFsqSz8ixwDe_3gDVXgt_EMd1huqaYSCs5JPoIjTAnQAAKhYGR4WkVzeo4VGcA25RTKbn8wwEzoH1IR20k-LE20KCQo3xhiGyV0BTpHEJc3-dkvn0rwbunRaJq6foYzItiXGmF92HpFPes40pq9w7Ia1g9wAnVUJPr3lL-8446mpQWYijNAdi7D-Vbh3pdimm4Eaf6x6sGB2pLTKiIKbNKQ8-RYm9DlRzV7ekmW8ZxMUsTXmQTKpUOWTZTWKoXWlxwb00LERLyqcgyoVVqgLqOCU63Lv44h4jXgMi9V00Xg74FoEizvqXIXM-OBxcy7GKW06yFDeAgPX8rgbJTumAXcEEoFhz3YXFu5vCYKIpdhXoeuLc6PGWJzxUUTV2w1yhhUfsNfc0_uLvBirefgnU0jbbPU3_cpqReF6u6n38M5cpj46oygMyYx5VGiMcCdBQikclr-uaRKfp9Nyd2PHeyNAydnBG0IeA0f4s9Ld0Eb0LgM8ZJvFbQZMH9JfGa5g9fKk7Z-vQqV6WwfaJ8X0E9_gC6e-Sh0L63e_fuZWqyraz0p4aKJEikbmE6ULj7S-mPfkBSkxXNiKzQjqCdRx0NGVJvz_Dc_5gtv-nqSKWpCKCVd-Q79KaPWnEXxV-8l_jb2KlRIQ28N5AQuY2OOXwFkE_fruvUh9s9mFcjgTe5yaIavJbKOEvSrCyZEmVn-u9R7Yd5I2Vk3qRCpe6WCRMlAyrN1dVeu6zTzc5XRSPObm3m0IbZ9GFlqPIIPGpReF9_WTo8y5FH0vJsUyHuhhxSm4C1lfJGrEZTIJbFqAoR83yGhz32ZA1bj4QmBfTSI6kLC94RJbCdqdAMA3PX8WhrKVAbRQsOpDUPhxKXEjZc9fE0w_bSaoN1MVLEi39J6ghqxOWTVzXu0-e_4HV7yte33k3MKFU7b5imeAEwut81DmAZ2rQHIudVPX56CzzTGW6RZnvI94dppjH76sWeEnLHg1X03tF-RXFkXqVim3PN3ABk-UUrbwv-AWUif0Jy4D4-lmErZun1PZeOP-BG8GcnlvG4mo0w5nBRY3F6wFxJR6LoPcjGeytDHeO26EBztD59T9KTpgCeJ3wpYPJD1vKuwnEoXpn61u2x55aW04tmj9TMFjmvTvwI-0G3O1BuiDvbNj_D74b-EEyu9Vi6PhgSDr13rqcmJuee9YR7egfEyB7ZSo5ZdXScPRGgaWLNMmB2bxv3KWueoBqJuxrTcefcVx2sOzao9xj51ZsKgrqqlOQWdFK922Drq9qA5bpW8JI_Uz0P7jrVwocmbKd9bOWiDspQ-4okmgUrB0v5Q8lRPXYJVcC55GPUbpBb36BWVfRRESLaoAuzp3B6XWqyq5VSwr3Hm3_7EfCYoTGchRyosVGkDtHh4_Uvxl9WW2GebYJI5yrVwQOAwJsfguMfczGSvzuiCKDZu6DXOWuLAr4hXTKBkFN3D2RCO-CFFeNUVmUbd6ObU-sIzjsZzx8WODB3Kr-DAhIspaV6XwmzYACFCO5q9hVh8Ud06p6EFS0XjJYMKUCnq0tYydv5rNbEV9IEINZ9MunpwJj2SSQlNlwRYKbrcyVnvtB1Wy3bp0eUVhbcoo9xAXty0Y5ok2aJxzx967d7tSHteHXCA8tYXjeE4YeiPe4ny_iaZYsks883KVKeKGV2JbvsAwy7nJ6YBUduJDFSw-27c_QXaUfeaaOjxtZaEPws0V2-0ggUPZmNZ_yqZ90X6ObAIdZ25CdOEztrsjyh8r0DE_TTP36llnyhEV-stRzn3AuTPYbK5ZTXGgdBBBcbLDdYCgwTBT8vUyXIWGyogIwrR",
+                "summary": [
+                    {
+                        "type": "summary_text",
+                        "text": "**Considering debugging steps**\n\nI’m thinking that, even without build automation and with manual tests, I can provide some generic debugging steps for Java code in this repository. First, the user should set up Java JDK (Java 8+). If they don’t have Maven or Gradle, they might compile using javac directly. Since there are tests with JUnit, they’ll need a test harness. If there's no build tool, maybe they could run JUnit using junit-jupiter, though that might be somewhat heavy. But I’m not sure if they definitely have Maven on their Windows machine."
+                    },
+                    {
+                        "type": "summary_text",
+                        "text": "**Proposing a pragmatic debugging approach**\n\nI think a practical way to debug this is by using an IDE like IntelliJ IDEA or VS Code with the Java extension. The user can run tests using Maven or Gradle if there's a wrapper; otherwise, they can compile manually with javac. To debug the entire process of opencode's agent, they should first reproduce the flow locally with a minimal sample script and check the logs. Next, identifying entry points is key, especially by searching for the main method using a tool like \"grep\" across the repository."
+                    }
+                ]
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_pTmerSNQATEvkADLgg7O5sSN",
+                "name": "grep",
+                "arguments": "{\"pattern\":\"public static void main\",\"path\":\"\"}",
+                "id": "fc_0770191ec5e162b00169bb556f88648190a734e73ebe8a6d66"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_pTmerSNQATEvkADLgg7O5sSN",
+                "output": "No files found"
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_0505d6733133afb60169bb557aace881959de0fbad48779346",
+                "encrypted_content": "gAAAAABpu1V8RK3Ytv4OZ5bavppgbENcVdg8NoooYLZmZ3ol9TEG5v5K9eurYuS7eWDZ8yiQJ3Ye7azU9CEOrVYPdjJoB2joJkICC32wLl7arvb4guBQHvfDYm1_GPTEAv5sxEaHscKt6jZBIi-UraaWt41F7UDa60XpUXMdIQLa0-0kaqUXgoHwo2faAPBVzlwaAdyeCcg_2LC496ViLZCe29R3PxavNr5Gj6CCLwv9UaoUYZlOZHaYuOPfZoYn5uOd4G-0G__Yn1k3MixPunmHWbhEBsDh_j8rbdxVnhdf_llUKgryAhdwTGDEQEIS5ZCcrYxm5q76zQRinuK2W_Eabp2AP4Kv4QOzyfZN7jESZHTEDq95CNKw7QAssusdzJQUOK24bSM8MleJ9C3Jz9owq_UHvYXygyxMe-TgYVTkx8CS683lIzIvs93d0V-vzAHHEzqKLrlfDHwBLWtYB3tl6nmhkEGgcWMRuXoh_K7sGaxXo_ntp1RO1BB23lGosyb3oRwp-HX9K_bCIOKrr7AMBlHRuqjO8PbS3RSMM71F9q4ezHxzVIiL4uYO0X9Iv9E5zgy0R90-oQ_imAp8O5evOSpX_iT0EyOXGLx5ApgYA1h_V1hfP6r8ouJxd7f8ZFrQVXAiomfEGTW1zbNzk_9WlnEFT7OaD7xvRvFsMmqJUMAub_CR2T0dWLlct61hbZ2jOfOJqoi8KyoIbrv5BXW1nmIzJtSTm66erosHZzDWZRy55a1yMbkQljYj61jVI5cPkk-mI08lLGTh1NempelhwkdYjH7iBoX2OEEY9eEffxqzR8e0spNZizfIBG5Cox_jKw5ykZBFnY0IPlBMckukAO0l1HAn_WHFw9udX2IfXK2HYHdiqZbOFI81IYKXugYkaEj5FUzdA8poA7737dgi7HQg1Jx7wc3sIAUG9ah8LwIH28JJxDVv61AoZ_LlYzRqFgnSrUaE6uK42hnwzYAzMIM7qO9_xok_5f2J7eqr0AofsvQ2YYZoLDBItILC8ra8jnDRNSI5jL7Ne0eRpab8AEGQa3ZnZfWrpXoruKmAL7_kllt76mtD30qKDJzolaotD9QbSxVvSnveoCk37l0roXmumMfLCdK4o4nBMx1oqUSpHj686-bbz3JvClgEumIydv8b_yVwRwOwOWsZ0vzcBXuLeV21cgwxrvlMMSh71rbKBle9R7KgQT_D3cU6-a5a8j_RxEkmeOSbQB0gLusnEZleZTfIAiD-m0n2Orpmiscm6CpG6licSDVgcWCUJ_sV-MmAdg9pnc5fDYOyav3fGDVKtynpjamCNdInqsP-dr5w4KJrbcs50L43YIhRYSTW1SelL7htb2AjC-Q7saHhq7kLyJPREz6ZWGvQn74AoTx5lKkBZX4=",
+                "summary": []
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_rJ35yAWvDsHDOlZknwVlnraw",
+                "name": "grep",
+                "arguments": "{\"path\":\".\",\"pattern\":\"public static void main\"}",
+                "id": "fc_0505d6733133afb60169bb557c05a08195b313b27c6262473a"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_rJ35yAWvDsHDOlZknwVlnraw",
+                "output": "No files found"
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_0c5686aa9742e05b0169bb557eea8481968ab3c79931bab527",
+                "encrypted_content": "gAAAAABpu1WB-RO3dqAtJlkXpOaebvV97VM1Z89-xdFdgBN_ZXr0YRhqEDXCQxNlBIwzQ1Wac_uurOL-K9bw8W6rBw4Frt2VZn2oxUElCvzXiH0Mvcqxw8W1-e4OMdeYMLoWBTeDV7s9WINKdijRQ0w-oiQn2sV3TjXsevMGliNeleRBBMNqCbOERku-LA142YlrurkQihSE7KrsQY4zkT4tiXyMaFPgvebpFO-w3O3FAgmML8NiEBRYW_1HISG7XgjbKxWGRYCq-ZSD8yzfcSfVvotKCXoQjq2c_nVYtL3ormVgxbtLl3NknJKtefsdEz7I1wDZzB0BPXzHB3wxAW4RvNFdQgQ2xG23ol2QqGZZ4hIFEzr-0swSJD7xFvNMjgA6ar-kcnEbEU4Bue9LdO9ZafV80hw84fDL_dH8AniSFddA7oJKOI1sadithfgYhKWgIaWO7NFAY9KiTnSIwKxwcxhexuRYTtMoO8oWR0xtxQPAYgP6fKmCvWU6EuYEltyC_syrotMkrux6YO5L0vVDOntIp--G18fskgS9RPdaVVXdkHV7eaKxRfJBJ1_mwttleqZDMIWQREP9biIe0tL7GJgusJpUSgXL5RmrWfu4m-cOWEbd_YbY9qGT95V3bK48hxz23VKSIuCAlZ4D4DLbb_r_qGmPDluqXpvpmF6SOYtxou3fnHsNBrWY8576_0J0vlP657N4UWaYBgoCX5ww3DqvfVtsKxSRjNEKMjR8jK4P_2Jpo09YZMmTq85OytcR4-IkYlceIQLa0V3zSWn9opa-_C_Cdxs_7MsD4zK4igV7I3cKqSeP_8vNBNwuDyrw1BxPX01mWPOefXqqjHCpDCk-K8_0se_aAwLL2V55vJncIWxCEQJ551zN6jhXvOVVcsXDoUiGatY24WBAGo74HmOqr6sicniYUPSWBucFEmNYFGXNp8NvLnyPqPttSzyuCiYplAxcZPr8vZeHoEGjLLPot2lN-4KjUPSSKWCV93NF7XnsJrW5SVhYX3Qj0DHt43_hP6IEm0cnOIkXG8cRwchYDvgiiGPhW2vYXPczICVqkLL7p7t0K7xRZXsQI7P84SWp4NFBJ6-QaDSgGoruFnu3zEy7ayeIvN6uTbdqLZYVaOKu5f06STbs1l3TBG7QjwwKbUqW0YQHXwWZ_Y9ABmW3YiBGnBEG4OjK9VKDhb5rxcR5w_bV5mYBY75WhIXhCFxMPVnVieE5F9UxcGB-fxcd5tOx54YC0dPgdmT5HopUsgIddlPa80qSATaTF55RmaNyhICSvXWhW7KrB4xEPsRKvh5r3mLvLMAjw0tWD5U8kocgLY9kv7ePW3ZV64xvsq44CfxK-eKfZLeBTIZcAT4W0u1e3MxZV5MTOWoGCbgdMYo0E1A=",
+                "summary": [
+                    {
+                        "type": "summary_text",
+                        "text": "**Considering grep tool usage**\n\nI’m thinking that the \"grep\" tool might need a path relative to the root. I’m not sure if I should set \"path\": \"\" or not since an earlier tool used an absolute path. Maybe it’s a good idea to glob for \"DateUtils.java\" since I already opened that with the full path. The grep tool probably won’t traverse, and it says it searches file contents with regular expressions. So, I’ll try searching for \"class Main\" across the repo with that pattern."
+                    }
+                ]
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_mYgKnP3HN3FxrGhaY0gaCivq",
+                "name": "grep",
+                "arguments": "{\"path\":\"\",\"pattern\":\"class Main\"}",
+                "id": "fc_0c5686aa9742e05b0169bb5581a8188196801ef36ec35a0dd0"
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_mYgKnP3HN3FxrGhaY0gaCivq",
+                "output": "No files found"
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_04dbb31e77c2f2a30169bb55842fc481959a981c0afc9b6019",
+                "encrypted_content": "gAAAAABpu1Wgt5-7bn9oaMvXwnU3_lUqCXe6NfvmTnp3In1tTw-PPJ6GarEW6WA9xdfM2LAAni7zoQ7avbGgdszl6AhcWRuj7xFeKUMFwiVwzOehL7SJBzydHa0KtnejDKuW-G50LazrACFQoF2eQTYFU0jTK6Q-ssIrDurkv1Df14oLHG372BeMzPT0id5a8JUNG86-6xvC2Yomop2FQ3DWYCk-E9_OD0QjNFx8-i5Dr0IwPv0CX_usJCn-4eDryRZ5NCa86jwCMFb6yMKZJZlUWCL2B5-IQHlfUgZnOAiqjNIpg1yBjbs-VVPh_Fu2d4Y2ggTcw8XKuRFEqlzlCeBjQGcSj1BNy19nCcBW3EvjOB4ZxeWFqpgeiRz0uHYGl7fpbov34o9jyCvyJSmjePFToehGKGFfNA-02Cc0KceuH1QA0RkJHmCG0qhPPw-9jbY1I7ZqNkBxgmUorbac7DrjSDs2WJSrFh3xO613S5OKufIhgfYkvo8JI4s2M1sAI9Vmkog6jJRTX-cQ0rT7UOO3bpaKFYtLXVKZVpKYgcmtvkXD0Hdq-dSLX83Yl63OFdm2iAmuHjNoWYL0l30xkHIghagjHVToKJXrXKe7tYY2wf1319xjEGdBOq7hWxTyb98WCluzQ0Aw6KsfoC27kaJm15K4Z4PSiAgQezutUiR15Y4aXNg-Ysl_wDxZsvDpOg_oWz_irONUsZsFZ9xEcAeNvPHgl6-QizpxDvcxVuuMC9FH5572XemW-hC5YdSY6iXQwI2KCYhfihuHLkzWtyjg_RfL8T-I-LazF6YqacXtKQ90jk25VXGFEOsqfXgnW3bdSY5GpkrF7hNgNyecOYTD9F8WG2CQ1kqfNHM1LfQoRCL1Aj4MUD0r218YAVcBb08UFC6j0HMo5CrLt5humCx56-RahWouE2iblnFHMaNZSosIHNRWRS2SUsxo2yE43d8Ri3QB-S5WhM-HA9keMU0-JSMgsq07r5chvQN7XhDu0juOAEju1epTDjVgclWJ0BWaYmhlRaYiaHVVXEnDXw07x1nuF3QhXXHIDl9Su7gL5zz9uYBA2lgj8IPCMaVHeaAO7cc4a48EvXE6x-ZeuFfeq9yj1oHfmEZ54xKY8FKlnaNTO36rEDfIbAkx9jIFk8Ol0HhXS2UD0aISNxS1XnnOzI0EFcrcz_fdcGOOkQMv1cfUIvPaboNTNiFztwXk6_yZnSTpRw7pPmOVsNgYzEcMlJ_4khPLOLSMVoSio5s2cAZnyR_p7K_9xwPlcTYmkwLG1BpB_Yf8yYsxoeqf0vwD1MlBRN7N7VhpeArrHkqgxSiS3kmcBJlXKDuOXtBAV7aDD8Uu4TYsnrh045gsj8TaP2MqGiV-iS6kG3BTxTk2r97lSpI9JC9XMDnvGtv0a_yfQD4hvpl47gLmgsAxupJlDzqAUAxva5bBDzC23U_x-7RMqx-8-r5qbAVNzHWBLXIAbQa9oIxZyE_eUHavV17pjWH2sw7Jweq2tMzGaKkuB7B0F2vICmE4LMZ_BXH5o-NF1L_wl1JNZiUNP8HpQ-zLPcXdSN16WlIgBj9A1QClbaR9j3qkBCMvzG1AGKwP2xRKIHuQzo1JaNcllxqSAFUmRrNZMZM2-Kc1CTTU5g6FCBtUALB8SM8kPPqDdYtINypCmC4vpNcK20XH369dbdz3I_nCnIqXlVmtAX-JhDvFoTzfrvizyXwE0GREPuzRmhlo_qjzCAljctnLYOEVuk0-fWF2Y4yGpTrpmvbgTptVlw4OsrqRy8IICJzr9Cqa50sg56tWHzvXPDuKAkDjs-lWCuKUkbnvPKAwEMoGgb848VcjxwJI2DzI8XW2hdlM0zbBA0cvBcEBnDQi2CtqGErNok5PQ3-ESYu9oPxqMuYPisHvkMOwmPBO_i6WifxZKltHuLvjZDMTv7PB8AGPa50TlGLWFyD3XWGfLrLDH-ul_QAoWCkCx32TqYGqL_Djs3UbygbaPqtebzubwPdHu6pgwwCMYPMBdaiGgGVy-LdEP0_QcG42vR6YDROHsn_I8o4x00gOilPC8ezrkKVFSJuPXSfwIACkUAEHrb_YvkrWBgyVdKQiuHNumPBHYBTUVhvbyamNQbaW7xKc6phIkDQn8qKPltQKiWPg8Qie-cM5CM5o0f0AVnUIvNy8ww66S-O64GflpZPQIl0PYwfbQ-I2a85LFoRpHVJPpVXWLOlZ-gigTciLdv2vcgb--ZozOZ3TKeFkvv_v5b_9xQfA3nQzjAsPIadtpBS_UzP691l-Ez6Q8GpHKrLrWW8byvt9FgWo3yCHj4e79qA2K2bhfM8n8RUPQUh4zGp_PCAfGkTQZGnRZ07XkFj65lhlrlEmJdpVHMXsI3PS0Mt8ncEYZxKIHKIkKuKzVe00hmH0cCDAAv2xBOKby3A7UA7ST8b4wd3vUmaGdejfL3HonfxP12lGxqB0g6XCvG5dV56DWLqFAF6XKkfNWG38bCZeXZZxqpRLJRDX5mkf3FFfJVNTg4ohaPVADak4eDKKDzmRKYLZfUeN7afyh8qjFtKtVI_7CPZUfEBwXWyCc92Nnopyp71Uicqzg7l7CKiMjE_IOfVDLb2dxfmh_SyS4PkHjcTEg7CT_ugRuW2i3byE0X6LBnPkoTuacdE0nfuzBfS9fTaEbKxGviB9TVIbMd3qUn3XmWHjRn6e0VtYh6uqOe4_T_AjN_gaK5UYjunPYaaKSYYlHxVe9S_aIqjS0uJxHT7graIBgHpyy1OCnnExNy0cJGNor2qHAkgWc9-RKuusi4XRX1wtlu-L8tKmhHlX_C0eDY9L5h_O4rn1IMQRgNMr5JpkpSFL_RV8mCOzjkBeMTwEwwvvI7yg8ccew-xJjj-pa94baGsjF8I_MNEJXZ5_yurzxrUNdcxQpUep8tN6zgxNOHeh4CHr30-At65RfBRL8lDNEe_7UFFa7G_WwhLQahGrK_8rkZ-FyvgcFuePIzAMbTiyr5Zg5O_jqSNSWXLTEnIc7A4-BtnfD_snr6LTRnS6GUFFZwr50xp6R-2BF_A539qUXnxBwKGuQ_uS7Bhd3M4eIPk9DBCBSG1s7O967-K8QC7tPOGN2PmFGIHH8IYK03as1zQZmn-AimFEX0YXXwC6OkbHqEyGBamylUUD78mhmi-joI_TijU_RrVrAM7Y9speONJmb3TIDaPhSXF8nVXYWvyJTToKRudHpxKktPjHaZHJnNEEtcyXRQb6Q9FNRhpsx2QWpbHvLN_9Pp-PZ-kPObwWEF1dX0DqxvJNzSCRO66LQg0hSvLWrB_bcZQnWj3rwtMsS8RDZ3_YIUYCCv3FRYlmfSfhzuxcAqfSqKmE5YavnzDvuAx86L7plW-roSaBielzrBB5cAiOi_pBN17gxAoMYLogYQHQlyHh1S-wXpdv1ZgLqc2nymD2hhRWlhqYRCy3wnEebmzR-9JXg0BPErPRBcfHXPHqRRc3t-m3of6qvG-rQaF_hRJEra-e2To7H3p4lybWwAbWfGj-oaivBrYrSxMQDJ4orv9NuJoyqMbESZgtEadOkyv7efewz-a2o9njPUqhTAYDRq8w6KIHe-XctjOM7VKzgRWykuMr5we9gl6d0slEKRGJoX_nr2bHC2a6yPo2j6sRDYBboxrt1gJZqFXZgMqJ7zAeu7hZOnlny___gayl0sFPPl6T_dz60qcVJooRKu6tw6HZjW5s7sO8b3EEAt8BoAqKDxhjOJ9g98pyVAFFl2yT6hMGLSFTinYUYhQ8fefeFf5i5goADMd9TuojYUIlDVA6xx1-jnopXwuNGweo6m-Dr0jFafF6sq2bO3aHU2EY2FNdtFUamCFDzJ3XTumU299co1W3ee_jEcmo29dNRbFA8cCtp0bhATSsnmkfYDPrii1lPvCRNkKVgVKhRbqnwliT3VypWhKL9VHkFRd9Qk0bf9JuQfxvPke_xXCbKWCGflmIp00zRCJhS1ylumMbX1I1jZIRIq6imc5SiLrCIIASMpGo0-LKHuOP7zYT5atr98wTi9yuCiphgtQMZzCfpOw2RQsYwjdI9VRmypdwCbbyBvgLEqf_JXAs9DWQzzg14SuYEVZeMWnXi7es2DBU0GWKZxrPcXHKHTAf6tdyAqa-XmZvO6OGNUHLnf50Wqyqce9EausCd15eK8BvllaNiDdBAFoeJYYNJM0-hR4d-rq8_UaMyZDMgbRCDW3jcXZb9exSUdL8W7ILjqCV2dlFUy71MiXnblEA1ode1aegpiLEdOfzVYrK2yBRxwLcba--kn5mtddMDDDwUjzm_TBKvbKATkUkAPXfdYMjeA8nXfI9TvlFcNpJCbNM0fZpCMKENAho__zOK_yJ9PYUA5PtxsL1dFwisJ41qn2cHg7VQ9OXARyQx8YF-0dqSiFFZIpYkc07G6no5Djrmw4yLW7vPMrNSD8t-MtstNLXU7DuuMqg2mnNcwQtJL4gnxUnLSFS5uKFbTaLu59ISIYYmVsowk-b-T6FycGS_B1taFBeSdx6FM0ZeyJS9XcDlswUxIgJYFpFomOSMJamnEroiSZyn0lV-iAnslnmdfnowqNGWVHlRx8NQY9lbAoct6Clf5o3L1vGpqB3zIeJvdcaHifFL1-TIFpuo9wfAPkPhzkzJiUCa-qdw85jWaw-dSG5_xCMnjL5Fywt5Wa3e07F8tUIdvVYGmLKB2anrJLscJTCUqyf60e7AHP8Empe-IW83cJOg4mUOPjMctiU3_dfTpV6SnrhlZVFw2j_c7rsP81PmPGHPQO6-xc8JsKImSpOZzBWH81cOm8JlPhBLZzHTbLUlTTs87YJYkyd0p9x8qtTdQtyVh7Hxqr_ujSSL_DkdSETM8AR5wCcTzJc8ETLkMcXMMTx1Pwd3LUrp6EhCk5UuJCK2JrAAJopufgCj2npp3Ds-vu1eaaoN1upn6kUVZGOeO9RbDsX0kNLiSAY9hNvBl6GpaKeywdsRQl9Em9SISDuAq_7qELVWL4wtC9gkLW5WlGbAVg28F_Ez2d2t7cT39DbxtMFpYUfzpi0H8aWEJmL2TQawmLG6Z7al21AbAiS2DOmfnR6gq87-YBW3fiALOTx5_uYHvOVOPvQVlscSjGSx1ogh-T7sls5TKGDkvzr67Dit1Gpjfn-yDSE3CSvd6PqCuYHWpz7Dk1M-5kUIQ33uLKxvVHhIaHQMUk6hXU4qCeQ8vylsvNmOZ_8hWaKBTzwdVKJHvUZ9xEeYYwtrXq6C91bwj8j1S2CqXn2Fqxr3OV2phQY3I39IXfn__jwPACwpB9dc2u2Fo7R9x7iH6597tEaoPieJXywbQpgxLDnk6Xbhv-Ex4BjXtoyUcgWLz9bsbMC6TE6XxitFcWBx2BREW9rnlWnHxTqJGkvFE5fezjO1YPFTw868cVpu-KX9dnjjB7ZK7tWqXDBnNiDN3nk4jiVrdINz-zGdsyI9ZbCNJHFXvwGr7F3Jdy02e1Hiqmy6Er5QlLcyr5ntV2nCeQwlhn7n-5ApEflexcA9nLPjEfbELifSws3lVFZ2FILNaIB3ONtSkrBFhy3ek7qD1npU-VDGxfh2aG4-S_EPfT9UOfHmyhu_9VHJXadLeAJS81hTsOPenLjaLu5vBwfWpDphJuPm__Jrc6CQxhA-9eGi45CpXpIPungkmg2ZMuvutlWzs8CWBFkZ5pRw7WkGDmr1u00N2HfVJYdlzUr64JPv9ywqDuR9PrTPZHvykwO17B79wbN9TT-NxJJmzncWG20nGGkFrnrZXiiWsEHSqIddknXD3lq8V3WjMKc1n7eaFP9NpjwrX6sSQiIh_BwkXNx_fTrFag5dYv0iL0yFadaodpuYvvtCPH2ogXn-gIQ8YkDAlJPo5yljkztHgbweY9dpBJ97vov11PoNbbBc4VuzmeVoV21hIdPE2_SM6sDNiHT8a4tfYlpt2X8yN5VZzewcMd9V8kZo3akxHhGOcuZ6pfAxaP1HPTIFYN9B3ndb5bY-9F8WMTdQoxjqWq812aV1EWPBLAk8tJ4bGjDqVfxdBCZCaM1BDEukhvFGEXfGpb4omBi5vKPAv0wDcRN6rRWfJdgkHvaA59lXqSHC0SjyYEE_mHBh-4NokJcDR_UHnXj0D-QNeMqDor--kOcHbC3K2pTg__vZwepacfCdLnF8lY1P_kfw0BQwloS6BcIka12G0A84fUwsTL7-LqakBudUPrBYVDdATvMnAzDZjqgmHMpGHrQDrvSuFyMVl_tKAhSN-1OQHFWtoPo_9TzOdxr1pwFN2WdsHwVirHSCIMKiWJqvZAcmzKRIhYbB_ooscvq0XcFvP-q5ZpPq7ChfcbdbF0dV5h7EwO089KxyzOgfaifIRzerjaOJ9sbyBU6_ai9CmByj1XQo9msU8S7jTVpbSBUlNpQg1zqfNdnwfaiY2cFbqXAN1OAzd3kE7hXZ1tHrTWf7E2csdAJDo-t56ETxuIOMA9FU7NsPAXqvX9vMNCQ7rtbTVBo6etQ4nokohP6hBEmppUNglcNPCaVG0HxVqGCv6IOe8fk_ExFtJpVoBJofvqdKb2wzucVBOd_sGEJuVcO_SuPuppluZAnfmemo8w3_u8C_ebHwzbKUUp9BbXOH58HBYlURzdkfzFiXKSySnZoJQleoaM8QZZALsY9Q9_4749QrXOVwAzakBQdMbs9GpWMOIG_uQfZ4_lHFwUJXhgBsjzFxi6CDGHmSb5sLaTcHVoyQ84IFYqsVnNiiuheCdx5Qyl4JUP738xSBx2EtUVNIFRVtgJ3pDRJxSnaoNkeADuH-LPLU7_sbKB3qaU8vPG_d177D8oygxtANOcdeBxzm26CyZi5ouiFenaUAyXfhN1U4kF7RrOuEQPzkGxsuv7iFThZimBeCGzUcKnIgqWK9cffhGozwojVXCo0zMypfnpUbzIVF_ssh2DM1YinT6z6AwnFqvNWdzi2HPvyrazpeEFS6XYoZq5m9RCXTjhheO14W2E435C9Cu4bKkSmzjufoiEbNeOuaPnH1Y88aIk3Yhyd1j1d7Tf-Rp5F8x92BoxfHYvwLU0CeAyVcgUUzTjLEVazW_sPXp8lrMZEkA3lTyVa274m_gIOoY2k58PIOSUt5er-7B0fDN7eQV7gxnNdAew6A7hqQsNV9u1FInNcbt3qKs8BeSWoEsll4IDxr2LIuJtDipgsKNeQ42QBFt1xTbRfzWemTFT_z99y4iJlSpzkyGFEu4h22AcdaUby80x52CMqSJXlbfwaSkV6y7FArR6V1xJ9N5EPEF_mpS7Rh7BjECQsPmAQlsciJhu32rJO0vy89T_iLAIu3uBy6qMX99-n5n0eNFFTxXD6mhFEzINNE-4xI0ZwQI2WfW3bbFfJvFiGrLJWugSdjEwMod1rdPGQgawgdn9RWE_IrfbV1JbjIZ0JH9iiWOT7pP7xmz17GvE6a7za7u9AVvc-hu9TpV9DOKPVwXPiVvqpBvEtUfodGYJny10En5c8UaIqOchKfo2JdPXgywMtpCbausDdihzHxt8D75ZyNxSyWFSnXLN5-1TlGp8UrUZIwRehHxBKX32-rAh59dJcNiX1ijhVPjrZ2ZZqRAApFvg3jaYtR-hkgG6T-TEAfnh6eHODuMOWE1WPvp1C4844oRI7S9-zhBC1zZyMHRZBY7Q1iaR9MwvkcTve_bf4Nuti5MOvRv-V7oRCeHrepYkc2C50DB5bCWEnqePxgoVzrf1qLgJh8NW6NGhvNxrHI_vrj-BvmOXTpwJ-Sta-Szz1YkxidxtRCNZCtpQw3eveYfdDPbB2g9Ng_HW_stfGEcENfLOGvaib_4SDIvzz9jEP1Znc4D2p0Jv_lsrVpr6sOp5nPyi6ZIc0a-seQgWO_ZkSA3BmQMmGn2WyiyLpitleDQWe-EiC3TIXymFd9L39TbQNt9wviL72weOCgQ9L9iQFyA5tDGTN-_PgZle_usSdyKsFANEZQTfEkDdkwvTVMQ5NX1bvsNcTlwJP8Ecu-2kyiHRv8ywXB-YQV409Ug_xrQOpI9XhbJk1e7grmoNN_EJqpehBYIuScK99lEMO5ZntkicNA7wsoQp7UPokijNy2fQvw4NIyVZdXiS9CrdUmSGSRlZmVY3M-mAvXX_DzoJOt2QKapLzRVeHQizH1jEiAPMa6SZ5qK6K_fu6xebfBen6WwaSJdF_KeU7ZaUhcZxiB1VT62agFv9OPJnHZNjxWTN7LRdzBM-S88JLGhu0XOmzEqPO3-bNuky7KIAvtbu2haTxFsrlN9Hct0sfD--8Qk4WwdjuflvEyBb6yonrK-iYCtU9HSZYPj_QLuEXabKafT42Uf56iPI5ffmSJF692g5RD0RzQEJtZSxjhYW9WCNtTUCxLG5Na4kIOO7_cHpuYedkdXd4CwcZps7bTwqIE7gIuxan7rDRqORZN4hngYYhxviQQ-a3rLzNcvYr-qcihBXk2IX18R6plkqNizxJyygXjyOqwhBC9Mj8ze3MZdJith9m6uMRrL7JjCFpWcHJNfY_EqRwTaWsa2fZyz9oycZs_XePcG9ZEShgCWpscmOEFdLY-38XgDINAyQcpG5PGrJeGfmhMiDNR71qFS4M7WJ509TOii4nd2lBxHz1YTmAlHIKExQJviS_EazYQFQi5fbPPkxTSSDne_7mUx8PDD7G99A6XqxgDY_PbkGApc9YEshn7QT-VjORnCcqxuCiah5qV_10bGzvE9D7SuZFBQA5j368PELOhwYQHYjKHveVAhQ9fF7s4XmAhcb2hIk30336jq8CGtSnT2-2txWnRVYzxuEeW9zMe8cPmzzwJruRXqTCSNPyG7O0Ju1w6DLxeC8H81ynj6X1JNkxPhQmGMetoxFHJjODm8P50oQxpBgnUEOO-bxRbYMkHOs32Mm8KKELyCfJjyy-9UoNBBpNzjcI-M_QqXP5xnsTiNxUAk9yfx99E1H51g6t9QwQqQWDMXbVTH_0rgiFrTQc9e2f0vcAO1aYMo6wfTdCoHwsSLmAJYh-ACSKVn-I3fVQVKQCdGbQ7_4dW-9Zo2rk3wiKLzBhPyqhkKpTXTLjbyosE3voBdi1RJXim7shoCqYWeB3UP_XV4BnR52uC_1HTbIz5doC093ssaeFhAtTPcZ5fK_Ti3X2O4sXNd2dYsndH0gPTadTMT2YTWZSc3wI7GR7IIYL5YhPNrmNGu-vqAXhxRN9igBR920eQAHdWd2QRiZR6YXELALl0_4UFrdnuw8nfuSMUTk3rPAMJT7PFoubL5R7x3Ys96Bv8tuhQ6HYyo3_UPL0ztGHD9FiW0u6NxbZvuI1Tbm6iaWRwQWLYFieF3rIjApeZrNbdGWNr1MpBEF3fgr_gYl_-02X3b8A22QTH08l65TCJWVND29jzxC8ih9ViQKbD5GG3RHTssyVMiKtCZEdK8Z4ANYpMOPsMM3pv4bNATtWQoXd9gDDlPSsm-M_0oNVfFB8O7xO41O9PK62wJRLSJ1gee7dlv3FGShZOoo4kTbLUvoJvAueRXUgkc7kG7Frulp1sX5lXu1S6NzUP3PRNgWtxsSHW6kjzzy6qiAJlqq6J-vSiQaokp6tNupsaJAPbMb0Iq435gJXJhIv9QE4IViCAdHfD7_eZQp9iz2ydmpABMFLhLhQjk0jRfNiuBNOEdvu-kJxGy9PytA3Y5A-sYrV7Y0Rgch6nSHMZgASp9KOePBczeumD1fqTXVPKnNnddvnPSEeAuctQ2VgO8Excf9Xv9R9CiTcKEoyzPDc85PgT9_Oqyt1stfVj3CyZdASnXp5BA0bQCMgsBXJKUdcoiaZDLwzAR2budhW-zmL4knIeRyLJ3ieN41AXP9s7hztEzVjnpcBiq4cvEEKSRWLH27Ocp5BwJWE4ACnyoumBx9vFp7w_Az-4o-9TrUGXB_yO9jMy3pVlvVUt2JMMLfosbXbO_VzPjVV65TUu9xjbWnARu29vS-phVtg5dt_EZk62w7rj0h883tFzEuBqwh8iwv9q4c3ZS9ocprCJDg9eYbkTwzD1QP3LG5C-mLXgn2Bhp-98f8eP4nPS1hmOEn1VUsOj9ibv7T7sEsXHG2QUX4OknfLE4BOoE5DtwE8FDS_rmrpfDhTVQLrpi2OFIdc3lmTP8kYxQ6N3JZVABt3MZwc1GTbk2nzvuXcTC376NyU7R6hCeWY9XuC1j_EtFds6Iv19iMSny51EeIKSXNQdXBFP62sDzcBnMHmyAgzbeB0VJGGtsZ1b22YdvRXcfXhWvIjLy4ob_dtVgzKdjoFkuZCKKv7MUrOiyLrCbnO3fY21osjG9Zyo8rVP5Gsb0wweNiPdl5agjrWzVaZ-IVFdw8bRwb-F08tHymV720wH5NtZUWLg5GxL2x6BzfmbGLjVFpP6r07_hS24WQEHBL2xb4xKouHZgMZonaq_47u7waR8RFTQQ4gZzYKALQY_8q6thKVGY9INl9Q81lPcrJC-DSvp65h7vLD9GOw7ep4lXQWimsqS7Ur90aaiYCxc0ue5zJp0FQo5iRQ30Ix3zEqRb6R_5Zh6PwAm-s4XtxchApa_AIiSGmExKK9ylPUx3qUhEan-oPJcnw_G1FS4PS_fj1zjVk-oI-4ukToCeGU1sMUiswu97E-gShMrZAdLs4LccfQQ8FwTlBEWHAdiY0LCDKwEsUNb85tEpmdRPPjU-uoLcgsjFs4ek7QQzNVRPb0P1BeyHJlG3U0KflKg2UlOijsvsgN-JTPV6KMR-sGXhYUcM3Ik8MQ79-JlVZi5SoxeEnNZ8cgBTldEfA-NR3_gP5Mwqtu4cngxRBJgIgotVaTpj08ThzW7pfEU9DFLZmun3Fhoe6vd8JBYQXMmj71U26NGnvFsctAcL5R_ZtznIgZpgIY5mwcWBZE1p6R3jyeRI7p-7wmmtRSkadG4sY_4kj_Eun0cYRJIFAXBGXv69zOf-EgdYm_MzM2-njqVmgGpkixf41tkVWh4MzyUXGId3T4wocTCJ9zACQamgbYabescQ5jF2tUH5LftxU27aKif7-1eFHHT7dyLtKqYzh3Rava_7_OcE6zwua9OoVLXrrjf5xZObjPS4ky1HgtqGf79KGQw6Cnx07mJpr795d58AfLQQ9J9zrnyiULdIYs4usBbOlYLdxEEubXujeZpnt89kQGQ_IDOFmy4eidvsTH5AonJLYk9f7jnotDGdQ7TkA0-TM7yZRqRaVEdS5XMaqt6QAVJ9SYsNQXokD0Gr-uVkVwBxa_Py6owEXU7-YWgXocpZo5SqZj7wrwuE_oL9Hh8EhPK6Z6d5wFYAVNZ6QdVeBjTRhqJ-u8LD1q5nyogwZFDB9n6ghKsTpvMi6sm5R39asMQ77w50mW025zBdD1h7vpwrowMqXrWUERffT-Fwsn-CDrSP6M09RvkOJ1JdqldeQN3Z20ZlkyajWofPLbxA3recJARGc1DA3Xb7L5I_ZbhddrgHIQa1qEkq7xfh_znihowIWv20pTrsUpKc9tVk0x9jj3XesO0C6a82W7BbZV1Ikb7kUmObdeQ5ebWNMZxDVIBNoCRZ2s_i2KcnsvQUow52S_RztcJktVyvLaI0AGBbQ7-4l0gcJklV70d0O-bEDEHNbVZ5RkPznENTQc_LOswOfA8oSpe16xMLhzcYDkH-S7FegV1CBxZdFaiFIaD1_OMko9kEhI6ocFKApQ0YL14GLUqorIpAZ30N59TN-ZQFwRHstc7MJ5kp2lnF_yzhlzzY_hl0FhuByczpwliAUA0z2Z2FnjNTxUeMOPsN9uHUIQ0NPQS99X-RBqbdTwPXY33kSf2_fBALjiAlGh6EZ8bvK4qtiCjUX_fL4sxEZKLEC3o0_FYF2eNDix1zPA_EhVawGnTRCDNSQSnFP5NAWZpuT9U-bm0yweiB7St2t2mF5X2lC8pfp3mMZenRhXvTpF9t6I_kmMXuDlGXZo8xvLvoEPhu1dXQUtdo3Z61sK9FERRqFLhbWWEdE1z-KP6Ez2i5boiTrunBBl7Mn36unNHYjek1pFF2PY3d_wIanLg78oHpWql_LOgVj24THISP50XYmWF1CSS4gDmVO1YubB46Zp1f2pYs22n2sPS8RQ5bMZ5S03BvA0fE6FYgzKkaPCXSIM-ftPEwnYEccedcb3-X0Rn17HuUfFlFLAQ6fs-xIIBsbSHTVXzO0gYSIIb8ahkThrmystiD_Pi5Cy8TdsmraIUga8tHFrr5Rnoj0sXYVko1IB7BUnRwGUcAjRa3B7Md1rwAcBuNuBdUedOBERxAOa7hV8YnyDSa0qRNMrc-UYPuqWgOXU76PLraMKt7P8GyEZJigIw3iighHcp_xVccYU6o-mfat_QEVLmoNNh5eTlkSA1X6VdonT0_mfyrOEIMQXsaveJk7uT7xWCZIJ5_vQIh5RC0JeAnYwRwkt1Tfil7WB4LookLXEu2SEWOtPGCNBPsuxVz42aOF1g6G4kwvATmYdVxi8bYJ6Syy0-_nh6xepWCLw8YKzw5a_663cB2kEB5gyzWtE7TTN-bqJe5UYRQeRj6ZvAHxVEqe5S163EeKkIV5dR-C82k8z1nlxc4ha6cE-daPecUj7Mxj13h7sh0Jn-CKqLOQ3MQdAcrB_p75_a-xrpvE-v5LvjafxCLxhQD0C7v7fvu7It_VB0vRFNgbd9UiqY7KFXcffvHvoCFrVfd-OQgYewoW_GWaN-Dxcxf-NlFtBI4vK4FM9rG1x2IfibDrx9mzfLbJQzyvKxcdwKn8C-AomHLIO-G2uaWcHpXhNdqg1UP1JWrbpCgPRSuZtrPfdUZW2rJSsetcjxVImBoBig9K-SxJM8WSeoQWP-lzQGuolQCi52fRpBuIgaFh1rPuPtbPEDyqZhGHfiexSw1Ad_S-ANBT7vlBBkgAPDgQSVZXh0lzskVs0NsZaSK4x4Ov5WL7eKIGBFlmByAphr1Nwx2NAWMaCqaZW3V5W5SCmMT_048MZoORe5yyhZpP0pa98TE7ly3tPVfg9DCjo2B7h-CFKU6hCxcoM_OuUD2mCHNajF93lTB5zvebLobefoKfpa9tP_dHWH40gwFXzC3pO_IwCyjA-DFckR2fEnKi4P2xU29cvtebG0YnZjgsWc_bM6_vPr_MoFEPzfu4WHYMJ9F7C1irXsnJt3o114vJJcULOIwwImOX5LnWSUdSv-pbPqBiyeiZJrBrVJab2KMtdaWv2VEY_U4OdySO53NpAUQ6LJouHb_5WV1R1t8iWJJkfJ30jO6gmn7QOMzZUnbHZtSzowQA8bKI5IMJlppgszmSVjBnUUi0QSKOtaV7ODKVvN3t3MbSAiXGKm3OrBhrYZL1nI9_k6ID0yhIiCsEybg9zQ1DLShdqVR5LZFigAJ8dWSm5D5gzWAE-BXoin2d7CMxIG1y98gFdO7gHydOFFpbJwTxpqhVWOQdJrUcLXF-CtoQg0pr2TUQnynVQzOtoI8mRc6HVO9yzUL5BTLPwwjerl1iJw_2oCUvfRXfQ1MJCfaz49zOjbja_xKhI0nLfAP4XN5WeIXsKgeQbz72umn3Bil7RO1lUcs81KMBYPtJ801G0YSSk-Xp8oUl4Hf0O1PZKWtKrNvatWfLfJXACxJ4vcKKKV1aqvju47KHrw83ySqfV8fK-aGWKGOpNKe6FS7-HX0mWFHMcgKqNCAUuE9gnLj9KhH9SFsD4xlUvN_70yrsHoEJZdb7niEAl3jv3_8ToYVKrKzXIthQjgfkP36mt6AlwCPhpXdzLNNliJ7NE5i490TpsW3CDOlA2VkPbQcMiDPetzaiyY0BFNGssoTzH31KG599F44Z2ivxu7I0jTOsW5dBX--vNesEt1XOcIJGODFtKh7c4jy_5nhh0IwjK8-POGH1eljLlNchXay09UceNf7K6kvXzDSTjK2PlWc-Z-nSUE2ThwuUTYy1IAkfB7f3EwfzzjakYF_X3JZBatboXfhgfaKdlwwC3RQgwiyMqw8zvHq4SIqcHwQ9XrCG653FdHi6e9tR34EMtBvJRobzBIY4Uap4sgJgGcJgsudT4z5C3yzWZUlAjZNk4hiFz2sUPRyF0g3ZXEaM62IHMv8GnbAWLTxBjrHvxupcC56hITHEQLl23dvKZV9brb9LcU7Olryo5CFxk6NJa9BgKitgDoVyJT8JIw6_pSSd9VyhQVbgDt-JRc5sEhwUv-j6H2h8DOH3KUjuxhY6NZtDRfrlqKGYOyd2b2VHar7HTCJgriHiVFq-BXuUk8WdZnOd7ZJWcHYS23i5bxJD7No58NcALUkHRY2DQsI8X0p_RoMtVE6sX0LfNWLHIFAFONfqWBkDFn4imGPNL3jVsahs1RJcMKCB5sDUoe51LLzKbJIOSOFNd55s462ZksKwxV-R-Vgace5EX_4Ar0MK1heWoxTIBk5PZ0OTaKo-Xa7yx7oeDNGTFTdkKAdQi10_umDoQNA6jFJ3K1Jo62UeraagmCqX9a4hK-Aaud3446TrLYsBnPIGnbO8ZjmGLOxa7u4XGjEW9lovPdCR2gW9X68r1S7DxiWdORCA5j8MsJFHIAIY3hROGOkDKZFJOO1aDnDITYRL4lsOgKXP8fwN1QZmGuz82AyK1134LYOSpYj4rghFLUP_TCh9BQk1fEtgFizQTA2WndniPIo6lobcLMm6OET0HkPjiHpmEAJWbv51TTyCrfb23zMoH-1ny_wUg88jv50uyDzSjpAyOTuXP66KNKeo-pEjBX9r6KIECTC1q1WegMZIylYOgS_keDz0HPUnG4w1SIx3N4ppR2F4N3zE1cmsDimTgWkMJKEHn-xXdto3y-vSbhVGPqpQ50f7--JUKZugMyeUpt-X8KwkOlcC2eWnRBEQag5WxqiRsebQMbhsaaQISRBQ_lEV3jE50m9tSTSxk_XVqDT6Iv3lNZFLAva7RI42QWQ5-RWwic61LwlH3QuvatwYL_Upp1Cb58ow_DZ8AJvD2iJ858umCmxvLqnVRokp6KAPZ9kNqCCJeL5pk4IjbEGcFvVwek-kmTvQEeeWXTw076-Alf5IcgzUU8BRNhK5ug5ao3Oh2fiHbBlSwNDPQaBQt5EnB1V9Rt0FXi5f4y9zrseiIU2R-ufGjIhMikjDkfoBuLV42S8JQQIjYX9j2kHojtM9HojCqti7NQ10HTjVBerH-1sqEGzCOrWDvbobwRyE_9DGcmgEuainak26C9iGrt9lFLxCvygyhvKLC0h0j875S6MyOuKrHeXUkU4u49Jbs3fdL8tHJ-V8blFC9QBx3fs-pdmiFXsiHO7DIytYuhANihqnl13PDXKBbjEkDfKCuUG1GC0LX7-IOlHVhavUkEKzOnAQ1SOx2ytA7g3Mnl0EBYNYVlNEnuZ0XKAgzfvGxasb1ioBdKB8MY6IYRTIGVhpxK6zdEB9K6pMS1m84hntz8-XXbDnQEcyDhp25XkVZwhLEAZcCR08VLpa9sSTsFzATlRm1dfmPEgmdbInT0TxSlOZgXmkvCxKPwE3k5xZNmw07C_saYo-grIJh4UOPm8dn1_Bh5ZLaOYcoWW8hUvYGw53uSFaX3iTIzRd0cpC8WvNRhwURPH2EcV9AMFF-_3NUdobdFa3uPzc33_oNIyuzVFH3NA9S7_wj5elLj1oEq6cCTMH1W_j18TUy-cH7GDZLXTUJYw-yzI2i72jSZ6YkMlT44HVEDNyengMhk0RMm8CwE4Pmk6wXDPvXhpNEJhjApdwm2kr8kT-kqH3FgM9FEGdhg10wMHI5a1WyrzZ3yP1VQ_GWB0gkY-_lMiuoejYvKZNcbxz_8LTEftsZBQVffuef6Kejo2hnmWTwnnBb0ovgEMvT_Pv6i2wndOnOPba89burbAmzPMEO-Pjw9OvzBefcxMgfkWe0mpXjgLJDzXhujb3AIxuzTsGonQSA22dwv5Q_SRRfW63WZSlFjMUMqAd1bsQVjwuayAsLl4NEL0p4sOY2RKus3igjGFWgejW8K0xSqozR-MG5TzINvP7wO1AnySpfnW7VNfMoiw2SlEYBwSfnQE9xVQ8Y028WvT-Rr9LxGoXbKIw4I1fCAMn13q-pqw6P5inCQhF7YF8PEMwWCrd6cnuSq2naiqp7PVPqkaBvEYhn2i7c69vjyvTaxO571Danjvr7_zYN-JbmeR_BCpDIC21kEBUdErojOgD624nSx41sR0TFokgxBf_r-EbT64Lg7vi1amfUmYvzq6gUzTztOIR8A7aKWh5-JXg5A-m5xKoivItF4uvOnnb4YvGrMKfG2V4zsLn8dbWYdnCEzhM7SkCl1lZs1AykEAanRSjK2XDCXAAlXg-tco47m_sgTrGZ_V2bxYfqI_GlZ5zhCMmhmCwfo7s7PMLK0nRAwsnGr5j7QMc-pEtp8-LiPiDLvhW7RnVXAJvlWgLP5OTm1Uv6zpX7SfKwVnscmrGVCb9U2lDJqPoF3mpUbu7Or1k1f1TZxj63-dlFmRWsqqzibv32hveZMNU-7IAU1ao2dWGC5RRcWDABjHy1xXlsgrbS1d12Qgo-rr0HlrBmQqr_djh7OodMQGBpWdffkYlyRYkdQhDhq3sOqsqcX-BuwlDcjCHmKecBTHqo5UWKSQwpMedGdEP1Ko3gEsuOXfgSw0ZXaxRQtbt1yHuP83nBSfW6-oMu2Xsp3pbV_DFLKObj-mHEJ56uMD2GQw2BHO1yIl8cmAVPVkWzUxe1KgF8cwS1Tcx3exWEmnsBA4T70fHUx4QFImZU86_vHbY8JN74Mr-27Ag9gQ4MHako_mFirnOH3UDdgTGc_YH99bBwxh6AdM2rhMy1DYJTuES7A5aEtShhkToyNmGQyV6qbB46fvBKYxicPcR7c0mu5Pop1ZpsvMU11H49fTwi5HlWY8nZ9G18QnNDUjWnEHDT7Zz2edBoy1XZVMJV6Xyt7NSDmAilM-EtKa6fOxYh2c-COvXvM8BbXhJaK9fL40PibwDMPCdrqVlpNcSkUKhwJ6oR7-SnB7y4rPXFifmgRfJNqLgSH6c2Qux3scF_Z3_uPdcEoJKCmgwkBaEyGzCbWWnRAYFXwDyltoLEN2qZrvZMegzVOingcTBg8zHtBs_F8uqhXJD9Aw_PV7zUZFxLRepucjWw1SdqvadQflooUFwYeJA8UxhSiSoBQP0iuLJWS04yTJFbyWl9UVjQPI-IqFgwvLo-3w8ng9ALan12VukJbTef5SOZXSLowbwLn4TaNYuxnJH-bgRlq9gput8AHmQdDwApZWIV-eEjYvZxxdP8SYNQpXX_wDhc-kcJsglMIhKkBLbcm8llpjXUYlh9FBZDFojhg1EKf87t3f3_lU7aenNfzj_iOx4JbjUzYzvpXXVXCBXVSjNrhjxLD-0IuB4xUfD0bo3-kBQ-mrYe5Zc2n7VFJCh5gjVIhrTi-h_20AVZzUomeRcNm_Td6Wuy-T6eqAabj2tKsJcB5vaKe7o5e1I2OqCbMy-gnUct05KWXAxNMKo9cE5eNAX968cj5pL-S7FLBnXkfjEwmclI6u1pkGslwjudyJ2Hs1o47yZW_2F7MfAZDz3Ydoh3Y2RZ25LvUHGWU4jquFlwMFtS9IdCajTi8iGQFDWpmjo_vJLRA3CS8m4n9SzZz3r7g1aS_DGtky-P6CkM8USrPLCX80ITByPTuAl-LcOZl8T07z28f_am4eoNPr2ef7BMIooA0tVrkbR3njfEThFIPDii-zSG2f4yil50aGhbkVQedogTqgUlMHjvmkoSm6bLvpu9FU_7AR013aZSRg6sZkChOghr1-7RAiRrXyQgiRzv3yitOSZGEr5o0Pwn6wW5Mptd_ouZfwrFwMxw-AhXvSOc9y-BdwXbLGi_5MHmPGsbCPkaGEDbsk45lAXtIKCoxCi2GS3IRy7SZnirrBK9jwq3uKKX3eSCbGKWRnor2UHxJa3iDC-8OBz2eexkeCc5oOZbEkeKYOfV8fG57l0F_4osZ-gc1zxMC6NsaQ9oMYnKo2C82ZAsJad28zkgYPk-zx5Lhv18ihBSjJM_UaHfANvYpADXiVE7ybFAGl2CtyXilpveO06eaxu9g0uIyTmy7gBWeA9eQm8OPby1oF8AXLm6RGThh16sXhiokJ8MBTQwfpx0SGyiIVgIMINMFU7YEWB5QpkoZwSjzMIjtgtatZm9yEN2sce_0Y3I7cOYVyDKRY9w0Zgoo6d3q6cAIzWUlDm7ADvP7IvSalTQYPW28oQkGjrDqfsBl29kOjyzY-HuqlTEoLLT1_fBKMFFTLZe_lb5Fmi6ZspJh4SARlMab-E1QQuzFS4GH801DJz-YiR0aXY_dj8JkL55wYlQgS8efeLHbLBj53zxPbNhckIvSSNoNQ6Lz0os59fqUyMFh-6h8weVpWpeud5AL9mz3U3h9QeKABYUqGc9nWMsCeRhQmU_S1Tlw9VG2BSZce1ZntVz4DHNjm6ibpQbhFnu79jNxOwn46GkdsSg05KPr-lOPnM5MF7w2e9IwwfqTHTjZc9s4nYomlFGK-MEN2GCMZ7-q117zBnkmQJGIRPtYsIWLYQmnel0bPBDZNr0Aqpqkbc9ukXPbMckDU2mulMvINWqC8P1q4K9MshVeXK2u171ptUih_S7kDIHUA04LjPKIAhUpX3aS4VGD1oOGAZPNsZ_3ri3F-_sww5rhOg9cVbbPF0MGyqXj9RnIyAI6o89U4SlGOQErkeyiRoPSSSQKoeet7amq5bsNlFheTg3muWpk57nbxDT_-HdDb_NqAJsoEKwvxZl1RfZXnsNdJEVOviTz969QiL85F2GYGM3naMfK0XXujMUNoxkHRalC8dchptr2KfZC6_vL__lMQsiX8r5NPxWtQBQJ2rHgYFp2XOTWqjro96hQVIjZ-PusPymSna8jf32kd-I3mcXNeqT96D7JfXxRxPeEziwdbFm6AHmVv1-_zYuAJWrbo7ctqhXteODKoBpFBbyTATtIPJaxxYYbjw_-qPJoUcqBhwiqHj5FMpp8J09ABZqYo2y6xWDgJzozodxVWeqGQEaoL30HukTKpSJhyaeUbEI9gTgr-bEwew7quCjOwUe8CMgUHhufi3o3Y3XLDec1mA9UnrI2oo3PcZFwIDZZoDe8FN5eW1qeDCPL472hipWFPC8v7EneNlyuG7-uSietEEHZoi_abXt_gYEAOTVt1q5_2x49MZ8IKWhxQY938HQ7WKIxya4jDEiy__aMext2KcmCsLCeeJNoFnWWTEt6vQR11HPfqrJVzYBVlrzu9KjY3lreOyVaG-7nxjdPGK34SF0nxUoYQ7w0PmWnvoNa16xBh4-NKnyzv3CSBQPYtmN07bsOHiLYHyNl1UDX2aGR31-5dVfwhQR4FI6dg-GYyU73z5ZUuo5LNIq4odMZ9xOHP0o8h2nOMQ8_J-Y0dcEApnHnKhd6IBGDmc-xUor6ETLDX7-5kuPl0fPj3mSfUOFDxybxrzVJFxyE8qqGAgSdpHmaJ46a2Yg1LayexK63iJbPmQy63pg-QOkEpoYX7QZTA4Qk6zPQ9b2gzgQouD2S1x3-fxNLQrD0L6_JAPFtyrrjrL9Bn_W_gqhb3G9u8O5IVHQfUbpmZb3DfL4pnNbWqCf7RmlpOcKd6H63v-522uMI0CimQ5k2rTTUM4FFpC0Ww6P-oLw4-eeFgPFT892idVVoa7ByUGpzcWOSJGdfXHSCOgRFes56uCGYnXrhNy2_yJqeXyZDDbxGf78fu2YwtEpN9aH2qxd0rQ4at4XJMc0KLldytmQEWfzqAuC3PIVl1fW_fX-4oG21RZSp4AuGsB5ayLJZio-r2ujBaj_Bo7O3fDyNxWsC3J6jy49MnAetMNB-0qobfbJas5ZHYCMzY2F_4LqzahGRkf5BHMEHbIyJMZOYoX9o9y-fnepmS9_o9sg4tlfxzfJy1vsOfkNLTlVGIJlBBiFYNrLfpod0jPNPAU5fDTFF85qpuK2CSyTrSqUeiLcoTLc4K_CkqLRsr6QD2qwCWbuYI3MMslVgesSiDBl1g-Y3u-0TfAcmexpPkcZ2mPAbeLvwYLf3OHa_j2pIIBAVT8HApbarV8jYyjBOhzNkWxGTkQ41vaK8R6egFNQYqkAU6IsbYNAH6ZSOr59trWbslBYF889-Q7TycXMO7AAwPJ0oZiOu0mV1Bt7pY__GZVCONUtWl5xqIjNLEu0JIyYZNI3hlZPy_HhlRhPXMV_j-tohDZF2oyUJDi9W_6YqO6MkG5KR_10sILJew_B2SNUUaqY-NrWbVXVoGaRxRAAwc7c76-YlLZtXSDOFbH9qVCMW4n1dCqHN2eGIrD9xcfXnk1M2fSxSyGJ7ygVM__hPKE_8N_9EliW-byFsk2g0oom_QYj4wKrIsNdTX1kzOjfpHJWRtY3R01J-eG728cvGISvWJcqii7zYxr5m42VTe8NruUB4amzJgbfShMz8-k3LA5bRC6hEWHOEHISqCfqM8kvNJVCLdKUTMmDPZ6Adj_srYWcK0tMKV_TePHls-UxI0Wvb8RAmG516tg8AsQcNVZZjRDxYEvuYi8TweS42G2sf1Tw4ou5u0TYrRYqhCU53NqTfbu5mT6NRsfF2-rnWvlc61ayZKz1ZvdOllxTOJoxmInQdvF6WRZ7bHDZt45nCxXPF5FV0kPYYUaijZ5hXqb85l82Hu_lV7yuzq1ktBDCyy5_Nzrqh7yEs7er0AATjIi8uhA-9StTomyTN_VyeQMxB0nbgNSwRIoO-SqkdDHHbzOOSu_S6FCApTIQ_cGUV3gOWix3JdafY0-NW6kiumZxj8XW_D_8CGZuMLXrblOe-lSBYY5pJuHRbAR__-3T2-g5in01ufJRB3ZhhgNUPkC42lTScE_iyPHGr2O9qsbNQjjn1tpWyhjb3pbJUmx_D8tn_kiBBqvO4-YK5Z5wtRejSvr8qaxpX0gUh4ZoiOWKL-7PjrxQ2ne6QlHWVirLnvyyWPHaJtUhNRUZZCo5zdBwjQteV1v7u3Z1FFqedXnqSB_1ZL642Cqo8z5NDTfeeLMrNIPwM3scfPSI_i1iLaooKCnfy4UHnQNdoa0hWw5YB2WOKHWoydnAG9ZQEmAPwc4by6eSG3oMsklAUkDqmCqePWOlNQW9rgcVsFx6fXyD6H1UqprIL5NzEdsYaHH1VUymSDKCBE6MJMruCEHQF5QkCwJEe1qaNTrfRH5w6GuuR85_-jE2c_3FNqhWiGOBN8MFQf-PvliPxfjaodaLBt3gyyZeM3tXONygaBrYxogmNTqa5Xhy0AWCDjPmL7Zo-tH4lyBA6kl_siyOeLhGgykvCytaIFAki4250h4P8gWxPx6qMJPtcMHoCVtAKYktCVwLBAKYMZlMidZX4oxwTt5G5HzZFXIQY_NZDdN95DgOPu3_GNdLyUpSrCKzrELkag_QbByIzomcr3KOODJHDXujIIiqnCGRn8LxtHwt_otVAwTkUYgK4Bh2ZFjPZsk6erPxEr5w9BvKENMmxCxmjxPmthO3VkRg1wjzC3H1",
+                "summary": [
+                    {
+                        "type": "summary_text",
+                        "text": "**Considering tool functionality and instrumentation**\n\nIt looks like the system's grep tool isn’t working well with Windows paths or expects a relative path to the repo root. We tried using an empty string for the path, but I’m not sure if that’s the issue. Earlier, the \"glob\" function did work without specifying a path. Instead, I think we should focus on reading known files like \"src/main/java/com/example/util/DateUtils.java\", which is a utility class. To debug the \"OpenCode\" flow, we should consider adding logs throughout the code path."
+                    },
+                    {
+                        "type": "summary_text",
+                        "text": "**Proposing debugging steps**\n\nWe can outline a general approach to set up a local debugging environment using IntelliJ or VS Code. First, I'll build the project with Maven or Gradle; if those aren’t available, I’ll compile it with javac. Then, I’ll run tests and check for dependencies. The next step is to use breakpoints in the IDE to examine the main entry point of the OpenCode process. I’ll inspect the flow, focusing on input handling, task routing, reasoning, and execution. I should also include integration tests and suggest commands to add logging where necessary."
+                    },
+                    {
+                        "type": "summary_text",
+                        "text": "**Proposing practical steps**\n\nLet’s outline some practical steps: First, I’ll determine the language stack used by OpenCode’s agent, which is Java, but it seems there are \"banch\" wrappers involved. To debug the agent flow, I can add logging to the core orchestration class at key events like when a request is received, planning starts, and execution results occur. I’ll set up a logback.xml to configure the log level to DEBUG and direct logs to both the console and a file. \n\nThen, I’ll install JDK 11+, open the project in an IDE, and run the build command. If Maven isn't available, I might be dealing with a monorepo, but I can suggest running the \"OpenCode\" interactive CLI, specifically the \"agentscope-ai\" CLI."
+                    },
+                    {
+                        "type": "summary_text",
+                        "text": "**Outlining general debugging steps**\n\nGiven my limited knowledge, I’ll create a general debugging approach with a step-by-step plan. First, I’ll map out the main code flow by searching for keywords like \"OpenCode\" and \"Agent\" across the repository. Since the \"websearch\" tool isn’t needed and \"ripgrep\" can't run due to limitations, I'll look into some key files instead. \n\nTo debug the entire process, I propose reproducing a simple scenario, like running a \"DateUtilsTest\" to demonstrate the testing environment. However, I need to focus on the OpenCode process as the user requested."
+                    },
+                    {
+                        "type": "summary_text",
+                        "text": "**Presenting a debugging approach**\n\nI can outline an approach to debug by adding logs to the agent code path and provide commands for running tests. First, I'll detail steps for remote debugging the Java process. For logging, I can suggest incorporating slf4j-simple or Logback dependency along with a logback.xml configuration. \n\nTo debug OpenCode, I’ll propose a practical guide that includes identifying the execution path, building the app with debug symbols, and using log instrumentation at key points. \n\nI could also suggest using Maven or Gradle commands for running tests, along with a methodology to determine the module for OpenCode flow.  Lastly, I want to ask: \"想要我按你常用的开发工具（IntelliJ/VSCode）给出详细的调试步骤吗？如果你已经有具体入口点或想调试哪个阶段，请告诉我。\""
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "下面给你一份实用的“从源码角度调试 OpenCode/代理流程”的中文指南。基于你仓库里的 Java 实现（有 DateUtils、JUnit 测试等证据），以下步骤可以帮助你从入口到输出逐步调试整个流程。\n\n核心思路\n- 找到入口点（程序入口、工作流的起点、总控逻辑）。\n- 以“输入→计划→执行→输出”为线索，逐步打断点并跟踪数据流。\n- 通过日志和断点重现整个流程，并在关键节点加入可观测信息（上下文、输入参数、中间结果、错误信息）。\n- 如需，开启远程调试，方便在 IDE 中逐步执行。\n\n1) 先确认运行环境与入口\n- 确保 JDK 版本合适（2.x 时代的包若干已废弃，建议使用至少 Java 8+ 或项目要求的版本）。\n- 查找入口点：在代码库中搜索 main 入口、或实现工作流控制的核心类（例如 FlowController、AgentRunner、OpenCode 等名字的类）。如果你熟悉模块结构，可以先在核心模块中定位“流程控制”相关的类。\n- 快速验证一个最小工作流：在一个简单的输入上运行，确认基础执行路径可用。\n\n2) 运行和调试的基本方法\n- 使用 IDE 调试（推荐）\n  - 在入口点的 main 方法或工作流核心方法处设置断点。\n  - 选择调试配置并直接运行，逐步进入（Step Into）到关键方法。\n  - 观察调用栈、传递的参数、返回值，以及全局/线程上下文。\n  - 如果有多模块，确保将需要的模块加入到运行/调试的类路径中。\n- 使用远程调试（如果应用以服务/守护进程形式运行）\n  - 在 JVM 启动时加入调试参数：\n    - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\n  - 在 IDE 里创建一个远程调试配置，连接到 localhost:5005 即可断点调试运行中的进程。\n- 命令行快速调试（若没有 IDE）\n  - 构建并运行带调试参数的应用（示例，需替换为你实际入口）：\n    - java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar your-app.jar\n  - 使用工具如 jdb/JVM 内置调试接口也可以辅助逐步执行。\n\n3) 日志与观测（快速增观察）\n- 启用/提升日志等级\n  - 如果项目使用 SLF4J/Logback等，确保日志级别在 DEBUG/TRACE 以捕捉更多信息。\n  - 在关键阶段输出上下文信息（输入参数、阶段名、分支/条件、中间结果、错误信息）。\n- 设计可观测的上下文\n  - 跨阶段传递一个 TraceId/CorrelationId，方便把同一次请求的日志串起来。\n  - 在每个阶段入口输出 TraceId、阶段名、关键变量名及其值。\n- 可选：简单的内部跟踪\n  - 如暂时不引入完整的 tracing 库，可以在核心流程关键方法前后打印简短日志（方法名、入参、返回值、异常信息）。\n\n4) 调试的分阶段清单（把目标对齐到 OpenCode 的“整条流程”）\n- 阶段 A：输入接收与预处理\n  - 观察输入数据是否被正确解析、校验、规范化。\n  - 日志要点：原始输入、解析后的数据结构、异常分支。\n- 阶段 B：计划/推理（如果有“推理/规划”模块）\n  - 跟踪计划的生成过程、各步骤/策略的选择、最终执行计划。\n  - 日志要点：选用的策略、关键决策点、计划对象。\n- 阶段 C：执行/调用外部工具或子代理\n  - 观察执行阶段的实际调用（例如调用外部服务、子代理、任务执行器等）。\n  - 日志要点：执行命令/请求、返回结果、超时/错误信息、重试策略。\n- 阶段 D：输出聚合与返回\n  - 校验最终输出格式、返回的数据结构、错误处理路径。\n  - 日志要点：最终输出、状态码、错误栈信息（如有）。\n\n5) 集成测试和示例用例\n- 编写或扩充集成测试，覆盖从输入到输出的完整路径。\n- 使用现有的单元测试（例如 DateUtilsTest）作为示例，逐步扩展到“整条流程”的测试用例。\n- 通过测试来验证你添加的日志/断点不会破坏现有行为。\n\n6) 常用调试与诊断命令（模板，按实际项目调整）\n- 构建与测试（若使用 Maven/Gradle，请改为对应命令）\n  - 如果存在 Maven 项目：mvn -f pom.xml test -Dtest=DateUtilsTest -X\n  - 如果存在 Gradle 项目：./gradlew test --tests DateUtilsTest\n- 运行特定入口的调试会话（模板）\n  - 在 IDE 中创建一个“Application”运行/调试配置，入口类指向实际的 main 类。\n  - 设置断点放在你关心的阶段入口处。\n- 远程调试连接（模板）\n  - JVM 启动参数：-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\n  - IDE 连接远程调试端口 5005，按需断点调试看代码路径。\n- 日志定位\n  - 在日志中搜索关键阶段的输出（输入、计划、执行、输出、错误）。\n  - 如发现异常，先定位到最靠近异常的调用栈，再逐步向上追踪。\n\n7) 你可以让我做的事\n- 如果你愿意，我可以给你一个更具体的“断点清单”和“调试配置”清单，基于你实际的入口类和模块结构。请告诉我：\n  - 你正在使用的开发工具/IDE（如 IntelliJ IDEA、VS Code、Eclipse 等）。\n  - 你希望聚焦的阶段（入口/推理/执行/输出），以及你能提供的入口点名称（或让我帮你在代码中定位一个典型入口）。\n  - 是否需要我帮你给出一个最小可运行的调试配置示例（包含断点位置、日志开关、远程调试参数等）。\n\n如果你愿意，我也可以先帮你做一个简单的诊断性清单：让我用现有代码定位一个潜在的“入口类/流程核心”位置（你愿意让我直接检視某些模块吗？），然后基于定位给出你可以直接使用的断点清单和调试步骤。你可以告诉我你想重点看的是哪一部分（比如“从收到用户请求到生成计划的阶段”），我会给出更具体的断点清单和逐步执行的指引。"
+                    }
+                ],
+                "id": "msg_04dbb31e77c2f2a30169bb55a0380c8195b18bef7333c1fa3a"
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "你好"
+                    }
+                ]
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_0eda3b810b9b414d0169bb5a751b408190b69f0b3ca45d0443",
+                "encrypted_content": "gAAAAABpu1p-XEH_ibpvtLAnnrxBlJwogvxFgnRvWe1jJ30K1X-lw8t4luq8Spdrch2CrDtP8yixZmAWLdaB6_hTIwPFatjaYCuEFm6tafJELzSskz-my9R5UULIrZNIDoLE604kfzAOwU5g4SYLq9EBxDypIILedlMzAKl0Hrv1ipumUes8KMoYCEexZt9phsg3hjzvs12i84uubVFPEWvkeqySfbGyeogEj7u0QhT_vdN_0Vl7bYTygN5DKeVshPbGNLboyEMj5OVCYW-U-rktDXdXap0c9T1UcnrwD9wXPKSQrcVMg_UfO-kiuJD3yy7afPhq9ZIkeWWC523g7ph071rZD67uGzFquIcYZEaSurS-XfegYGjIAI9auw4vWpa2idcn_zZUUavMgwZs5W5gqlLzFq0o00G-N8Wz3GMaqUP7GDs2xlM0HEmXuh3c8E8tdQiHtxBULgGB7STVmqgPevBjCmMQ37ayqtSvqkLY-M25rq_qKZbZQWJxhx7zVSDIsvA3wuVllae7UzdnX0m3YaV7RQrVxOUbrps3-mRvgSyVDkwPorqjO3lNx8fw3aNzj-5vZasXD8Jade1WKncOGHVAxgo2GBCK-G6_u9nrPX2672-uKdJu3kkLLtqdBsy3f6USYMiXVnKoBTJ4VDe7Z_kwZTNvO5lvuxZCBt45T_AdF-NBcaqltCWmkIAAQoiHvcqlnfCI0z8MishVHRxm5-DkO719w8waNYSnY_ZVDghMG0csnvo-suU8qq0OIlcdsH63msY_fa4xsrp53U_xsg3oorawsYyHWwYEqfsD0nqEK9iK5OHA1JuAtcDiJlYV9dAr0c6iCpWgclu09kHg_P1ghLzfFNqY5VmMHXvGAO9PHPwMI6bQrAtQPe99J8EqcXS_YHphaxtC6UUDdhP6c9hlfeAP0f6uCOghAOlVwTWhDvYzMaMwFt23fP2YB8DjfQRXMysYW62tdFxtknUN6yKAAbxlswGEFDA9goP25QjPvGmQO3yBEh4D_8YY0aayZzTguq-hCDFipJKT0vdKNIbQUfig1vbgc9-sREK_xXcK7GupceoAd3HPNqIbl5L62q23eocxOs8SbUE5CniRN-OkuHJoj_DJCN8XNFcKmeROW7klbqj238yHNKHVHt3EQZr9p0LAIrDlKawetJ927NMFK2VR-fepFjUYsC6vF-ZaDBfcvjuDjsneMEpPht_dvS8DvY6z33TuBIk0jrJkmVPa_sh8vNxaeEfXiBbkC3oHLvW__e6mb_kDqExhszzHyS_6R8fUfQtD0h7tlte0nMVTOVWtfwAYIEGHM9KsSI9TXoTPwr6IgYyQDdxUqDlh1-9suwdduKY3KNDw1dRYZihbhHiE5JOuLBrN3qMWPhugPrh9dk-wQpSz7hNxZ8xTv-2uWXBLPqsuGwRrAQsC3KcCzrFa_cO0Wej4xZg2djaFWAEiRx5eVt__nUeh4crgPAemcRt0W3N5qehkCccvsBznRbyIiMz7aG8vexCJkIv4XnUwnQGRkzSDXqHcozdbEorD1syLHdWIbIhYhM1pfuJSFWTgLr-EpIGxaodmnT5sO-BPW9Oasla_nLJ41zylawwwOUd9plczfoZnRlDZvE_aASjaNCI7QrqbqFZE17SEkR3_IaL8-lQrIOk8qrdVdLLcBJbpGWqlNcWN77e0el6zwoCjeRC8ehWxFGaxUsj86tj58IRnFIbVffWVf9yOdB7K8HEgUfKY2wdvs021j8fLGJPmleYV52X88k4rl1HHJY0fFi9Md_00J9yo9E2-agWZNgoLrn9GyQWN8xIqdI2cGNTLW2ovRN6dI_CCXDPd4SbLvdbsZEK_ScmIBU7F0PQsHc9_1i5pr7P8X6G6SKX2XW6nR35EHF8OCD9KhYA-kTYDf96yWR8GAZnAdYsVaaebv0sUSEBi5QdXW9clXd-t9YtD3KxgZZcI_L-l4gLKCxPEB_R2JP-URkmvwYRR8lb3W3gMNeYFHfAkzFnxFAMOkZECA7ROUSKWUfANrf7aRWECfFf660R9XRM1-5yJfwiLVL_bz7uR1DhQBVCqW7tVryDnuBsdCy57-YjYa-mC2aH5Kva3Ul0cW86eAOkIwndUBPlf0wWJyL89K2AFkNZYLSX-BNqrB-dq6bVDy0vWslGLnl6wmEPahlO7_5GsSPy07JprHLfhXutifzMOD5bixQK2Bzn410brv7rEc4D03h9sN6ybQrVgxDq08SAk8bTiaqzrWSkg951TOfJEv2k2XsVk1Jbrh6DsooPdRfMzsSFjUr3IRnlYMRCL5AcQ_1t824MmUCfTd8KaT_nCUsjv96sc53ugS_fVS8ZKLZEdQj0pW6_2Ot0tZiX5GaHKNpDu3BmnxVPcGPQVHZy7ob2KbyOSHPFit9I_xS5fRytcnC2pKDQ5AUbpSAMgUD4kCWCDqqIchP2ixKU4h5fShmNw0ofrWbd0IiE-GvAuGaUnWnkuBLDqiWKBbgjSD8FrOuyNxXjhQgSalsH5j3OSgq4rfG-PUJyRb9MH1GRI2q_lUsTQ5s2e7Y_M52SLA1yek61slwbyJeX4ZbxIaty-aYqQ6ClgByi8fzFEDUQQCVMlP-mjl2aYReHHeIeg8u7vMSY27CuqsDPS4nQDWGTu_C1t3gNaY7e48QyfdfopVy3j2bjSsKR2akIpeoAoFSLAPRWgjrATIggalCnbmiLzD5x8m6qjcanHdjTfvvQGuyq21gxp-kpAj0hqKPaqDQBrSXfB7tEdDZoZyeTQ8oD3N1LtYS0H2_zb7jJkPZK2wKCIqH8kAfIFNgw80NZi1G6o8b9mcGDhrfioPKVo5MBjvGAx3X7zaW3ThO705bwFHmyakcpk3mLAvMpLEl93PfvbD8TpypStcyEat3M1QeWnhGzpOJqXT1vRLvMw54J89AK9Z2uTIbuZQP4-51DfHy09KHW1tKww3PML8E4q6jA2Ul8F6T9rK9LK-gYvPtNmJD3ZVN__zsTDO51TyrXURlx19JyH8kPlq3b6v0krQY9qn8oWPYXtpk74YGBqzmUqoWpNoaXh45mjJNqTgWctLrZDkXp1PX5fOhtHq1ijkUWynT3CY1a69stUOBzLuH3cfkNkV9RVT57t2m_4HYMO2c0j4lgy3hP6MoxY7UPSu5RDsmPRzpXNAu-TkE-em6LBNOaCk5knDgsdPEoDw8L-g6tID2ecIa9wXcXCSNt6bx81Uub2EDLEQEa0kkDbhNR7Lmh-mPPeqOdeUR6Qq0TErWT6rtuxs2ym0dE0_PqOxHLCK0zzvswY9EGXFU8BN8Om_0Ss0wbDJ5hhnzrK32AqTV2ANjugXFCgpyrPF8NnMORyf6qXdzgYzUUV9tS3-Rir3lRxd2luPR3AFkI2lfeXEOGv-06s0zULRn2sTJwpG5qRb49OZfun5o7u-PfuHq_jyPShy5zboKG1GMDMNltweheA5_vkhCjixL5SCqJk_KjK8sOriZfZt-axC78zvChBWRQZJAjzTn9CZ9NhJktyO8rYdsDtWTLSsfvJdsSLN2hMw8OOpaliyvcUF_g3YDkNuIKdKcCxHl3uWXC-4DzQkENfWdhT7M9oS55fu44UQ6OqKXyNE3Uddhjkn6sFiKlBq73HtGIbgbzKxwLFBtpfWP5vFI0wEv8hFfWf7ot-hMAwKVXC6pMRx_JLR0Phf9my5OmqUTtX5uvI1c83YyEI3N-JcOdUQA46AJJy3Lavwy95VklQ2st_j8C7fSkZLHhFocp49Afmb8LAjIZI0ON8f_X0o50ITb_DYkUn7_wkDEnsNbT124L4DA1TmOXMzomg4a5Xsk5KYlHEf0XfhOEwT9JlsXnBcffcDG0qLjbQSWgj9zK5StCGIrOJ3G3YgBf7sYiDeH9MoMsZ_rV8qIEtOTIhtCmTzkcNfWymY3lPZeJAIo5pTij16PMquSYV7fO4dVQ67e4N2-ukfXXGRCklv4icBjXhCXl1PSpfScq3nCY6FDidXlqrr6Gj9CypkSmbgknbSi4rEtDa360D9IwneylklobeFpwzWSqwf2s0ZpZxOvk_37gG1wNl_IFRjXafbcVrE_pv_YFkRiI2I1URGbQ8QuVDK2lVUmioPS8-5qVRBDTBBSUq1uAwxRuPyDuQKFA7UG_86jznx5Vgf9ufZWbV3xlBmc9jRrNhUwqfz0J65qcaZpyTLt67CvQqC7ZF_md2sLiJsxT7OIy34Vc2oaif73s8cwuvVNRiQpABhiEHkW-sagTXc999zH6NV4gtGGCbOeBFtWJGvJskCrctzj0wg_fPRiqHTEqSFofEmMWVy4QpH_CkyRNohfmIyXy0-gMvWvh2SXJyC0qE6sXp2ttTf1o3d4CCWyDZjAWSzXKtu26Tp0rFrbcsNfIZUeJr75a_yYuJ4prIfUAXvg7fcWBGVBQiC3Uc2ImWurT_RkeXbBlzrxj2gvN5eNNETwcWIDfr23ruYfux6yIbAt7oG9yhGlHOm4vhd6RleGNMmyKJHQgT9sOs_Vdo1ThuGKlaTnhQCKFmb2BxeOWRHsZOMQOAiI2a_CEsWSMgc9N3CQszbnTCOubGvHIsGQI7i7VyzNjXBtgXQVoR_MScUEP22pmgqqpl2HoaZCxH7xIEKPqy8jPk895wy7_IcKvkdonQCTje3OfYSJmBwjxWz-hOc7yqL-HcCeZEUPIEsGwInYYfsgeR1SSjZwNeR5WVF4lM1D-p_VFRDjB_YZrsxTgnnr4EPUyT8pTByiZdidN6KARSaelGQ6hlgEHHW_K3j0zrdV9PIbA8G60kH5RWjOwxm66DM28-mm4N31yee75LUm1-sBvebyRczSSh5QbiRRC87qOI-qNazr6H13rOa1IAtnH1ZGf1di25_R0YWO3fkHdlrufTgIVaOE3sg9aH4GrUPL_c6AmkpYEo8rAKNn4vuedV3yUhXFsVpQsXS55tJENSKtn9b-ArGocT4FMQIBV8GYthfamrIZ92_R26dOzDXY9TH53G7lBwk80UU-z_H1wE-nSduFVdsuZuXzSb7X5qEOqpJ9JSlWvoiIDHc_lAUw6s0k1VWMdSzdhq26Z8l8QKJJhwA23k0m_RegMSba3X2vYuO7_9jys1Z8wvl0Mgmb4ZYyRe3bXxMCkjne7Wc_bSgoGJ_dTh2T07jXMjMptcQOCq216FDGP2SUm8TcXIHQL0HcpIovy_5i7S2CWQtwjDL9lCgHfKqTNrm5B7cjHn7CeT4Exsyun6rQfrgIhLr31sG08UiNebqCgfVuEXF3DBDOpj0LcSL4o80rvVaSXOebIZl9z7OZP64x6N96CJ70zHQjfuro5c3ZFwzRFRbekCZsFZZZHzB0g3AYbI5yfVGB1vWp8NNy69--E613xfDnyY5zXFjaKA2-OeH_FAh1LAtNHUYk5CpFPs7fEeX9i8jrvLqG7CdNs_YOJFxLg75mnEONI5KNFahIhxGfPjjdZ4YbYbd4nHlAxYKoGFgNxS4m3dD8mcGQ8yhZj-GarfHN4GT0qMAWlUynHb7MXdhD3raVrF3y03H-nIZELiLFSW73uiIH8DrelzxFM7T7G8eAOmR_xTlW0umUHkaPFa7qmZMcRdWeGjZCE-GpT5bXVcJo23y7ln-5vUCan71UNvp-iXab9cGjHYBQObWJQlKD2XDJ-Zbv7FAmEEwR_jMlZDHnlrRzfexBaWatvSe4axS4v16vdYZHsoP1Cc-aQVrAIcRO0ACj_PQ60Fy22CFI_NDn8yZNsU0mwon-v7DFF3Sw9NqO8P6t3-rSrVQj5CEWDghREc1jyA2tO7gVkFDnqzAI_Ez3aVqKMa97ksv7vw3tcuKcWJl6thX5-Bk5yrrqIqaTHUx0Z1GSOaCfUch1Lk3A9m2ze8TLzQYOp-ATA-griaIm3kBgo0RM3ZyAMHc4i7C4Z1vovLlUohksfUkd3Q-taslkS9RjwHtrIL0HL_VOdkatJOOyRoO4uMD1WAe5Gu99umAfef4I20uzVQu0sB48UTAylJUBxGQZwS_xSU6GDqKMnn_UVcCsiaW4T7PRc204RIFUlztfChyEbfcFlGVRSjVhy6UalG1FkLaCiw_RehIMSeqjfLf10sxGxBc4XIMoPLAtcvxtjthECq1RP4GbVs0oUDmsyzO-95J0FxGnNlvDb7s-8hCPa8aGETjnG08ZMuuEzvTSE3lbm9sCYrDyppc5UvG5CeF-2Hd269yj2WEIVtaH1ovkIhIPY2yn8bQopNaU4_npejVVrJruZ96nZl0-h7wVYQglrxhP_WEnu2w5d5QaGxiK4eSSc4i_rwo1UWlInBCJsD_8Tr0LrtHrW73RJDKrYTsFHTySDN7l5Ns2R3wp2gnQKGMAbz6Sslh3YD1qhH5c7n0oREHkBIN-YeHx7mTnWyhCc13CCpoE3Em92yDvyd92EVAOczBiC5Lz7HOFPgrJ_Ue2m3AwEwhXEiYkrntKRFQZXtTACiMeg3C-pxLWEe_OUqWLOB6idKBWIMwo-TtuCoEif4SLh96RpaZXgM2-RNr8-7zTujMibukMD6KAUxzPUwIm9Ws5yeQUmJZmSjf-Zef64Dz2Z5xYbQZWmLCbSzmJ8LXxPn3hZGsUorQGp2HoJnMCkIEuglqZyD1_icEWAfAxIJde67qdfvExyzdo2RsPgsF9mE_IvARRcYDej053VINsvvSLBadjTGyiAZCDTTVqDP2OsPH_-JG9VXe6BCCZGBHvie7rtlgHB4uQXtjXz_XCfYhCEVbgIJnYZDC8OSuiVC0ezbuufcnxbcKgZOKnpgUywQM1AY-hRbksZKH2m7nu0-CWyorFxfWGgg-mG7R8Ts1iwqaLpfVUr93fgTZdoLxa3iY7SCOT0Hg3Vffx83FsBxCytjDSnsQ33RaIbeR-dZXXR0hT8Ej3qUhaPbERm9tgD2CohxfNI_SWLihGfBo75VqUn8brQIolE9LvcnbLR6IKTzkIqB8V1_5ZSk5rvdtd__kPPMmo34z1M6evkx3XqRHVGtspAAmARKGDdFHOOFMcXGxiSc6M5lUjjhoiE7tgfVZOnIvQ0BnAHH1cZPSCBidaAU7MHheqoLCX80wpLJouAuw2GUF0dKcQXQXSZmUZqpTDAHWcE3VINWVF0bZTo4fGmkLznwfVNO7OlevbcCvg1B40qF1tLmYoBPwS0mM7PRdZ-Jn6hrZ7BUgFhZaFipzrbGG21xi-dgSHUy6SmNelGPCzu19REuRXX3DmeUHyrRnWAM-nQu-Ljz90tSj3nX8mks5eNAi3RXdBjMtH60o-WvC87VTTI8TFmXnKePazfYzUHfzyMXtGQPwmOYXYzrHWuG00vK7UUUrDXxnynuWZ_7nYNIf8FCYW7OlZAn82dr00p-jAfC-H1y943kcS0G4afB5Ob1wnJuV3kFl1-7_AzrTzQ2Z2NR4-rgy0FoETmVckhrHuaPP7ThOZvy18sxoP5UVApRH-L60jAFyNpJIQoQioYPpQGgwKbb5wyjUsviYDyjsY8GJH-Oqs1q_XXWavaeWkRqrkfOyzxZ1ZeGLwdd9uYC3_AxlcSH3L1uVUN-TrzrtVvNf8zI1gvGPxnPeCYeV8vhdqCkq2309LSr7WHaCKKwcf9bTvM5Ra-xh-JFdDUVfdLJkYUofyGnlBSz5eZGg3zaeMHTNWtFVgOM9xTLkiOMYFyX5M9Ynx1cx2Rrtcyg3Ku_nfMk3XP9LpEux3XJMzJAHC-eRsCR7rfOOb276okk0PfitF_BNrkm91FyGW1_NHTa_59lpdplcGyaKwjAqpiozl8pw7mJ1Z_4qn3pEhBkM6k0jn0sjYW6W1JbiqwniesfG-8rUpDo0jL8pB6n0dTV9eIoA-pLtyb9M6_bVyiSPNTU6YxfEhmvijBppUGveKBQ3v6cNac1gWVFYLHH_nr-YU6t9BqoBqNfdn3I4BgTXl6jhzBbRHYrffx0RLEf8X-6lkaD4fPFsBA-cbiMmppcHX6HmPfcxx03GLtgmn1n0MUKfD9q4cQhtmpGQiIX6w9GZqG2HdLmgw8ghCZUTd_gPqg-WSapGH48rxzfYE0cSNqA_NrpNdkryMSmGKJe4OEtgkum",
+                "summary": []
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "你好！我可以帮你把 OpenCode 的完整执行流程从源码级别调试起来。\n\n我的计划（默认执行）\n- 在当前仓库里定位入口点（如主入口类、流程控制核心类、入口服务等），并给出初步的断点清单和关键观测点。\n- 按阶段给出逐步调试要点：输入→计划/推理→执行→输出，以及可能的错误分支。\n\n要不要我现在就开始定位入口点并给出第一版断点清单？如果你有特定语言或模块偏好，请一句话说明，我会优先聚焦相应的部分。"
+                    }
+                ],
+                "id": "msg_0eda3b810b9b414d0169bb5a7e1e2c8190bb9c98232b9c0480"
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "你好"
+                    }
+                ]
+            }
+        ],
+        "max_output_tokens": 32000,
+        "store": false,
+        "include": [
+            "reasoning.encrypted_content"
+        ],
+        "prompt_cache_key": "ses_2fc3f17bcffePzRQ762XYyeqMy",
+        "reasoning": {
+            "effort": "medium",
+            "summary": "auto"
+        },
+        "tools": [
+            {
+                "type": "function",
+                "name": "question",
+                "description": "Use this tool when you need to ask the user questions during execution. This allows you to:\r\n1. Gather user preferences or requirements\r\n2. Clarify ambiguous instructions\r\n3. Get decisions on implementation choices as you work\r\n4. Offer choices to the user about what direction to take.\r\n\r\nUsage notes:\r\n- When `custom` is enabled (default), a \"Type your own answer\" option is added automatically; don't include \"Other\" or catch-all options\r\n- Answers are returned as arrays of labels; set `multiple: true` to allow selecting more than one\r\n- If you recommend a specific option, make that the first option in the list and add \"(Recommended)\" at the end of the label\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "questions": {
+                            "description": "Questions to ask",
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "question": {
+                                        "description": "Complete question",
+                                        "type": "string"
+                                    },
+                                    "header": {
+                                        "description": "Very short label (max 30 chars)",
+                                        "type": "string"
+                                    },
+                                    "options": {
+                                        "description": "Available choices",
+                                        "type": "array",
+                                        "items": {
+                                            "ref": "QuestionOption",
+                                            "type": "object",
+                                            "properties": {
+                                                "label": {
+                                                    "description": "Display text (1-5 words, concise)",
+                                                    "type": "string"
+                                                },
+                                                "description": {
+                                                    "description": "Explanation of choice",
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "label",
+                                                "description"
+                                            ],
+                                            "additionalProperties": false
+                                        }
+                                    },
+                                    "multiple": {
+                                        "description": "Allow selecting multiple choices",
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "question",
+                                    "header",
+                                    "options"
+                                ],
+                                "additionalProperties": false
+                            }
+                        }
+                    },
+                    "required": [
+                        "questions"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "bash",
+                "description": "Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.\r\n\r\nAll commands run in D:\\WorkPlace\\Project\\Git\\agentscope-ai by default. Use the `workdir` parameter if you need to run a command in a different directory. AVOID using `cd <directory> && <command>` patterns - use `workdir` instead.\r\n\r\nIMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.\r\n\r\nBefore executing the command, please follow these steps:\r\n\r\n1. Directory Verification:\r\n   - If the command will create new directories or files, first use `ls` to verify the parent directory exists and is the correct location\r\n   - For example, before running \"mkdir foo/bar\", first use `ls foo` to check that \"foo\" exists and is the intended parent directory\r\n\r\n2. Command Execution:\r\n   - Always quote file paths that contain spaces with double quotes (e.g., rm \"path with spaces/file.txt\")\r\n   - Examples of proper quoting:\r\n     - mkdir \"/Users/name/My Documents\" (correct)\r\n     - mkdir /Users/name/My Documents (incorrect - will fail)\r\n     - python \"/path/with spaces/script.py\" (correct)\r\n     - python /path/with spaces/script.py (incorrect - will fail)\r\n   - After ensuring proper quoting, execute the command.\r\n   - Capture the output of the command.\r\n\r\nUsage notes:\r\n  - The command argument is required.\r\n  - You can specify an optional timeout in milliseconds. If not specified, commands will time out after 120000ms (2 minutes).\r\n  - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.\r\n  - If the output exceeds 2000 lines or 51200 bytes, it will be truncated and the full output will be written to a file. You can use Read with offset/limit to read specific sections or Grep to search the full content. Do NOT use `head`, `tail`, or other truncation commands to limit output; the full output will already be captured to a file for more precise searching.\r\n\r\n  - Avoid using Bash with the `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo` commands, unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:\r\n    - File search: Use Glob (NOT find or ls)\r\n    - Content search: Use Grep (NOT grep or rg)\r\n    - Read files: Use Read (NOT cat/head/tail)\r\n    - Edit files: Use Edit (NOT sed/awk)\r\n    - Write files: Use Write (NOT echo >/cat <<EOF)\r\n    - Communication: Output text directly (NOT echo/printf)\r\n  - When issuing multiple commands:\r\n    - If the commands are independent and can run in parallel, make multiple Bash tool calls in a single message. For example, if you need to run \"git status\" and \"git diff\", send a single message with two Bash tool calls in parallel.\r\n    - If the commands depend on each other and must run sequentially, use a single Bash call with '&&' to chain them together (e.g., `git add . && git commit -m \"message\" && git push`). For instance, if one operation must complete before another starts (like mkdir before cp, Write before Bash for git operations, or git add before git commit), run these operations sequentially instead.\r\n    - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail\r\n    - DO NOT use newlines to separate commands (newlines are ok in quoted strings)\r\n  - AVOID using `cd <directory> && <command>`. Use the `workdir` parameter to change directories instead.\r\n    <good-example>\r\n    Use workdir=\"/foo/bar\" with command: pytest tests\r\n    </good-example>\r\n    <bad-example>\r\n    cd /foo/bar && pytest tests\r\n    </bad-example>\r\n\r\n# Committing changes with git\r\n\r\nOnly create commits when requested by the user. If unclear, ask first. When the user asks you to create a new git commit, follow these steps carefully:\r\n\r\nGit Safety Protocol:\r\n- NEVER update the git config\r\n- NEVER run destructive/irreversible git commands (like push --force, hard reset, etc) unless the user explicitly requests them\r\n- NEVER skip hooks (--no-verify, --no-gpg-sign, etc) unless the user explicitly requests it\r\n- NEVER run force push to main/master, warn the user if they request it\r\n- Avoid git commit --amend. ONLY use --amend when ALL conditions are met:\r\n  (1) User explicitly requested amend, OR commit SUCCEEDED but pre-commit hook auto-modified files that need including\r\n  (2) HEAD commit was created by you in this conversation (verify: git log -1 --format='%an %ae')\r\n  (3) Commit has NOT been pushed to remote (verify: git status shows \"Your branch is ahead\")\r\n- CRITICAL: If commit FAILED or was REJECTED by hook, NEVER amend - fix the issue and create a NEW commit\r\n- CRITICAL: If you already pushed to remote, NEVER amend unless user explicitly requests it (requires force push)\r\n- NEVER commit changes unless the user explicitly asks you to. It is VERY IMPORTANT to only commit when explicitly asked, otherwise the user will feel that you are being too proactive.\r\n\r\n1. You can call multiple tools in a single response. When multiple independent pieces of information are requested and all commands are likely to succeed, run multiple tool calls in parallel for optimal performance. run the following bash commands in parallel, each using the Bash tool:\r\n  - Run a git status command to see all untracked files.\r\n  - Run a git diff command to see both staged and unstaged changes that will be committed.\r\n  - Run a git log command to see recent commit messages, so that you can follow this repository's commit message style.\r\n2. Analyze all staged changes (both previously staged and newly added) and draft a commit message:\r\n  - Summarize the nature of the changes (eg. new feature, enhancement to an existing feature, bug fix, refactoring, test, docs, etc.). Ensure the message accurately reflects the changes and their purpose (i.e. \"add\" means a wholly new feature, \"update\" means an enhancement to an existing feature, \"fix\" means a bug fix, etc.).\r\n  - Do not commit files that likely contain secrets (.env, credentials.json, etc.). Warn the user if they specifically request to commit those files\r\n  - Draft a concise (1-2 sentences) commit message that focuses on the \"why\" rather than the \"what\"\r\n  - Ensure it accurately reflects the changes and their purpose\r\n3. You can call multiple tools in a single response. When multiple independent pieces of information are requested and all commands are likely to succeed, run multiple tool calls in parallel for optimal performance. run the following commands:\r\n   - Add relevant untracked files to the staging area.\r\n   - Create the commit with a message\r\n   - Run git status after the commit completes to verify success.\r\n   Note: git status depends on the commit completing, so run it sequentially after the commit.\r\n4. If the commit fails due to pre-commit hook, fix the issue and create a NEW commit (see amend rules above)\r\n\r\nImportant notes:\r\n- NEVER run additional commands to read or explore code, besides git bash commands\r\n- NEVER use the TodoWrite or Task tools\r\n- DO NOT push to the remote repository unless the user explicitly asks you to do so\r\n- IMPORTANT: Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.\r\n- If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit\r\n\r\n# Creating pull requests\r\nUse the gh command via the Bash tool for ALL GitHub-related tasks including working with issues, pull requests, checks, and releases. If given a GitHub URL use the gh command to get the information needed.\r\n\r\nIMPORTANT: When the user asks you to create a pull request, follow these steps carefully:\r\n\r\n1. You can call multiple tools in a single response. When multiple independent pieces of information are requested and all commands are likely to succeed, run multiple tool calls in parallel for optimal performance. run the following bash commands in parallel using the Bash tool, in order to understand the current state of the branch since it diverged from the main branch:\r\n   - Run a git status command to see all untracked files\r\n   - Run a git diff command to see both staged and unstaged changes that will be committed\r\n   - Check if the current branch tracks a remote branch and is up to date with the remote, so you know if you need to push to the remote\r\n   - Run a git log command and `git diff [base-branch]...HEAD` to understand the full commit history for the current branch (from the time it diverged from the base branch)\r\n2. Analyze all changes that will be included in the pull request, making sure to look at all relevant commits (NOT just the latest commit, but ALL commits that will be included in the pull request!!!), and draft a pull request summary\r\n3. You can call multiple tools in a single response. When multiple independent pieces of information are requested and all commands are likely to succeed, run multiple tool calls in parallel for optimal performance. run the following commands in parallel:\r\n   - Create new branch if needed\r\n   - Push to remote with -u flag if needed\r\n   - Create PR using gh pr create with the format below. Use a HEREDOC to pass the body to ensure correct formatting.\r\n<example>\r\ngh pr create --title \"the pr title\" --body \"$(cat <<'EOF'\r\n## Summary\r\n<1-3 bullet points>\r\n</example>\r\n\r\nImportant:\r\n- DO NOT use the TodoWrite or Task tools\r\n- Return the PR URL when you're done, so the user can see it\r\n\r\n# Other common operations\r\n- View comments on a GitHub PR: gh api repos/foo/bar/pulls/123/comments\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "description": "The command to execute",
+                            "type": "string"
+                        },
+                        "timeout": {
+                            "description": "Optional timeout in milliseconds",
+                            "type": "number"
+                        },
+                        "workdir": {
+                            "description": "The working directory to run the command in. Defaults to D:\\WorkPlace\\Project\\Git\\agentscope-ai. Use this instead of 'cd' commands.",
+                            "type": "string"
+                        },
+                        "description": {
+                            "description": "Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "command",
+                        "description"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "read",
+                "description": "Read a file or directory from the local filesystem. If the path does not exist, an error is returned.\r\n\r\nUsage:\r\n- The filePath parameter should be an absolute path.\r\n- By default, this tool returns up to 2000 lines from the start of the file.\r\n- The offset parameter is the line number to start from (1-indexed).\r\n- To read later sections, call this tool again with a larger offset.\r\n- Use the grep tool to find specific content in large files or files with long lines.\r\n- If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.\r\n- Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents \"foo\\n\", you will receive \"1: foo\\n\". For directories, entries are returned one per line (without line numbers) with a trailing `/` for subdirectories.\r\n- Any line longer than 2000 characters is truncated.\r\n- Call this tool in parallel when you know there are multiple files you want to read.\r\n- Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.\r\n- This tool can read image files and PDFs and return them as file attachments.\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "filePath": {
+                            "description": "The absolute path to the file or directory to read",
+                            "type": "string"
+                        },
+                        "offset": {
+                            "description": "The line number to start reading from (1-indexed)",
+                            "type": "number"
+                        },
+                        "limit": {
+                            "description": "The maximum number of lines to read (defaults to 2000)",
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "filePath"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "glob",
+                "description": "- Fast file pattern matching tool that works with any codebase size\r\n- Supports glob patterns like \"**/*.js\" or \"src/**/*.ts\"\r\n- Returns matching file paths sorted by modification time\r\n- Use this tool when you need to find files by name patterns\r\n- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead\r\n- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "pattern": {
+                            "description": "The glob pattern to match files against",
+                            "type": "string"
+                        },
+                        "path": {
+                            "description": "The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter \"undefined\" or \"null\" - simply omit it for the default behavior. Must be a valid directory path if provided.",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "pattern"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "grep",
+                "description": "- Fast content search tool that works with any codebase size\r\n- Searches file contents using regular expressions\r\n- Supports full regex syntax (eg. \"log.*Error\", \"function\\s+\\w+\", etc.)\r\n- Filter files by pattern with the include parameter (eg. \"*.js\", \"*.{ts,tsx}\")\r\n- Returns file paths and line numbers with at least one match sorted by modification time\r\n- Use this tool when you need to find files containing specific patterns\r\n- If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.\r\n- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "pattern": {
+                            "description": "The regex pattern to search for in file contents",
+                            "type": "string"
+                        },
+                        "path": {
+                            "description": "The directory to search in. Defaults to the current working directory.",
+                            "type": "string"
+                        },
+                        "include": {
+                            "description": "File pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "pattern"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "task",
+                "description": "Launch a new agent to handle complex, multistep tasks autonomously.\r\n\r\nAvailable agent types and the tools they have access to:\r\n- general: General-purpose agent for researching complex questions and executing multiple units of work in parallel.\n- explore: Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. \"src/components/**/*.tsx\"), search code for keywords (eg. \"API endpoints\"), or answer questions about the codebase (eg. \"how do API endpoints work?\"). When calling this agent, specify the desired thoroughness level: \"quick\" for basic searches, \"medium\" for moderate exploration, or \"very thorough\" for comprehensive analysis across multiple locations and naming conventions.\r\n\r\nWhen using the Task tool, you must specify a subagent_type parameter to select which agent type to use.\r\n\r\nWhen to use the Task tool:\r\n- When you are instructed to execute custom slash commands. Use the Task tool with the slash command invocation as the entire prompt. The slash command can take arguments. For example: Task(description=\"Check the file\", prompt=\"/check-file path/to/file.py\")\r\n\r\nWhen NOT to use the Task tool:\r\n- If you want to read a specific file path, use the Read or Glob tool instead of the Task tool, to find the match more quickly\r\n- If you are searching for a specific class definition like \"class Foo\", use the Glob tool instead, to find the match more quickly\r\n- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Task tool, to find the match more quickly\r\n- Other tasks that are not related to the agent descriptions above\r\n\r\n\r\nUsage notes:\r\n1. Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses\r\n2. When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result. The output includes a task_id you can reuse later to continue the same subagent session.\r\n3. Each agent invocation starts with a fresh context unless you provide task_id to resume the same subagent session (which continues with its previous messages and tool outputs). When starting fresh, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.\r\n4. The agent's outputs should generally be trusted\r\n5. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).\r\n6. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.\r\n\r\nExample usage (NOTE: The agents below are fictional examples for illustration only - use the actual agents listed above):\r\n\r\n<example_agent_descriptions>\r\n\"code-reviewer\": use this agent after you are done writing a significant piece of code\r\n\"greeting-responder\": use this agent when to respond to user greetings with a friendly joke\r\n</example_agent_description>\r\n\r\n<example>\r\nuser: \"Please write a function that checks if a number is prime\"\r\nassistant: Sure let me write a function that checks if a number is prime\r\nassistant: First let me use the Write tool to write a function that checks if a number is prime\r\nassistant: I'm going to use the Write tool to write the following code:\r\n<code>\r\nfunction isPrime(n) {\r\n  if (n <= 1) return false\r\n  for (let i = 2; i * i <= n; i++) {\r\n    if (n % i === 0) return false\r\n  }\r\n  return true\r\n}\r\n</code>\r\n<commentary>\r\nSince a significant piece of code was written and the task was completed, now use the code-reviewer agent to review the code\r\n</commentary>\r\nassistant: Now let me use the code-reviewer agent to review the code\r\nassistant: Uses the Task tool to launch the code-reviewer agent\r\n</example>\r\n\r\n<example>\r\nuser: \"Hello\"\r\n<commentary>\r\nSince the user is greeting, use the greeting-responder agent to respond with a friendly joke\r\n</commentary>\r\nassistant: \"I'm going to use the Task tool to launch the with the greeting-responder agent\"\r\n</example>\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "description": {
+                            "description": "A short (3-5 words) description of the task",
+                            "type": "string"
+                        },
+                        "prompt": {
+                            "description": "The task for the agent to perform",
+                            "type": "string"
+                        },
+                        "subagent_type": {
+                            "description": "The type of specialized agent to use for this task",
+                            "type": "string"
+                        },
+                        "task_id": {
+                            "description": "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
+                            "type": "string"
+                        },
+                        "command": {
+                            "description": "The command that triggered this task",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "description",
+                        "prompt",
+                        "subagent_type"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "webfetch",
+                "description": "- Fetches content from a specified URL\r\n- Takes a URL and optional format as input\r\n- Fetches the URL content, converts to requested format (markdown by default)\r\n- Returns the content in the specified format\r\n- Use this tool when you need to retrieve and analyze web content\r\n\r\nUsage notes:\r\n  - IMPORTANT: if another tool is present that offers better web fetching capabilities, is more targeted to the task, or has fewer restrictions, prefer using that tool instead of this one.\r\n  - The URL must be a fully-formed valid URL\r\n  - HTTP URLs will be automatically upgraded to HTTPS\r\n  - Format options: \"markdown\" (default), \"text\", or \"html\"\r\n  - This tool is read-only and does not modify any files\r\n  - Results may be summarized if the content is very large\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "description": "The URL to fetch content from",
+                            "type": "string"
+                        },
+                        "format": {
+                            "description": "The format to return the content in (text, markdown, or html). Defaults to markdown.",
+                            "default": "markdown",
+                            "type": "string",
+                            "enum": [
+                                "text",
+                                "markdown",
+                                "html"
+                            ]
+                        },
+                        "timeout": {
+                            "description": "Optional timeout in seconds (max 120)",
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "url",
+                        "format"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "todowrite",
+                "description": "Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.\r\nIt also helps the user understand the progress of the task and overall progress of their requests.\r\n\r\n## When to Use This Tool\r\nUse this tool proactively in these scenarios:\r\n\r\n1. Complex multistep tasks - When a task requires 3 or more distinct steps or actions\r\n2. Non-trivial and complex tasks - Tasks that require careful planning or multiple operations\r\n3. User explicitly requests todo list - When the user directly asks you to use the todo list\r\n4. User provides multiple tasks - When users provide a list of things to be done (numbered or comma-separated)\r\n5. After receiving new instructions - Immediately capture user requirements as todos. Feel free to edit the todo list based on new information.\r\n6. After completing a task - Mark it complete and add any new follow-up tasks\r\n7. When you start working on a new task, mark the todo as in_progress. Ideally you should only have one todo as in_progress at a time. Complete existing tasks before starting new ones.\r\n\r\n## When NOT to Use This Tool\r\n\r\nSkip using this tool when:\r\n1. There is only a single, straightforward task\r\n2. The task is trivial and tracking it provides no organizational benefit\r\n3. The task can be completed in less than 3 trivial steps\r\n4. The task is purely conversational or informational\r\n\r\nNOTE that you should not use this tool if there is only one trivial task to do. In this case you are better off just doing the task directly.\r\n\r\n## Examples of When to Use the Todo List\r\n\r\n<example>\r\nUser: I want to add a dark mode toggle to the application settings. Make sure you run the tests and build when you're done!\r\nAssistant: I'll help add a dark mode toggle to your application settings. Let me create a todo list to track this implementation.\r\n*Creates todo list with the following items:*\r\n1. Create dark mode toggle component in Settings page\r\n2. Add dark mode state management (context/store)\r\n3. Implement CSS-in-JS styles for dark theme\r\n4. Update existing components to support theme switching\r\n5. Run tests and build process, addressing any failures or errors that occur\r\n*Begins working on the first task*\r\n\r\n<reasoning>\r\nThe assistant used the todo list because:\r\n1. Adding dark mode is a multi-step feature requiring UI, state management, and styling changes\r\n2. The user explicitly requested tests and build be run afterward\r\n3. The assistant inferred that tests and build need to pass by adding \"Ensure tests and build succeed\" as the final task\r\n</reasoning>\r\n</example>\r\n\r\n<example>\r\nUser: Help me rename the function getCwd to getCurrentWorkingDirectory across my project\r\nAssistant: Let me first search through your codebase to find all occurrences of 'getCwd'.\r\n*Uses grep or search tools to locate all instances of getCwd in the codebase*\r\nAssistant: I've found 15 instances of 'getCwd' across 8 different files. Let me create a todo list to track these changes.\r\n*Creates todo list with specific items for each file that needs updating*\r\n\r\n<reasoning>\r\nThe assistant used the todo list because:\r\n1. First, the assistant searched to understand the scope of the task\r\n2. Upon finding multiple occurrences across different files, it determined this was a complex task with multiple steps\r\n3. The todo list helps ensure every instance is tracked and updated systematically\r\n4. This approach prevents missing any occurrences and maintains code consistency\r\n</reasoning>\r\n</example>\r\n\r\n\r\n<example>\r\nUser: I need to implement these features for my e-commerce site: user registration, product catalog, shopping cart, and checkout flow.\r\nAssistant: I'll help implement these features. First, let's add all the features to the todo list.\r\n*Creates a todo list breaking down each feature into specific tasks based on the project architecture*\r\nAssistant: Let's start with user registration. This will involve creating database models, API endpoints, and frontend forms that integrate with your existing authentication system.\r\n\r\n<reasoning>\r\nThe assistant used the todo list because:\r\n1. The user provided multiple complex features to implement in a comma separated list\r\n2. The todo list helps organize these large features into manageable tasks\r\n3. This approach allows for tracking progress across the entire implementation\r\n</reasoning>\r\n</example>\r\n\r\n<example>\r\nUser: Can you help optimize my React application? It's rendering slowly and has performance issues.</user>\r\nAssistant: I'll help optimize your React application. First, let me examine your codebase to identify potential performance bottlenecks.\r\n*Reviews component structure, render patterns, state management, and data fetching*\r\nAssistant: After analyzing your codebase, I've identified several performance issues. Let me create a todo list to track our optimization efforts.\r\n*Creates todo list with items like: 1) Implement memoization for expensive calculations in ProductList, 2) Add virtualization for long lists in Dashboard, 3) Optimize image loading in Gallery component, 4) Fix state update loops in ShoppingCart, 5) Review bundle size and implement code splitting*\r\nLet's start by implementing memoization for the expensive calculations in your ProductList component.</assistant>\r\n\r\n<reasoning>\r\nThe assistant used the todo list because:\r\n1. First, the assistant examined the codebase to identify specific performance issues\r\n2. Based on this analysis, it identified multiple optimization opportunities\r\n3. Performance optimization is a non-trivial task requiring multiple steps\r\n4. The todo list helps methodically track improvements across different components\r\n5. This systematic approach ensures all performance bottlenecks are addressed\r\n</reasoning>\r\n</example>\r\n\r\n## Examples of When NOT to Use the Todo List\r\n\r\n<example>\r\nUser: How do I print 'Hello World' in Python?\r\nAssistant: In Python, you can print \"Hello World\" with this simple code:\r\n\r\npython\r\nprint(\"Hello World\")\r\n\r\nThis will output the text \"Hello World\" to the console when executed.</assistant>\r\n\r\n<reasoning>\r\nThe assistant did not use the todo list because this is a single, trivial task that can be completed in one step. There's no need to track multiple tasks or steps for such a straightforward request.\r\n</reasoning>\r\n</example>\r\n\r\n<example>\r\nUser: What does the git status command do?\r\nAssistant: The git status command shows the current state of your working directory and staging area. It displays which changes have been staged, which haven't, and which files aren't being tracked by Git. This is a fundamental command for understanding the current state of your repository before making commits.\r\n\r\n<reasoning>\r\nThe assistant did not use the todo list because this is an informational request with no actual coding task to complete. The user is simply asking for an explanation, not for the assistant to perform multiple steps or tasks.\r\n</reasoning>\r\n</example>\r\n\r\n<example>\r\nUser: Can you add a comment to the calculateTotal function to explain what it does?\r\nAssistant: Sure, let me add a comment to the calculateTotal function to explain what it does.\r\n* Uses the Edit tool to add a comment to the calculateTotal function *\r\n\r\n<reasoning>\r\nThe assistant did not use the todo list because this is a single, straightforward task confined to one location in the code. Adding a comment doesn't require tracking multiple steps or systematic organization.\r\n</reasoning>\r\n</example>\r\n\r\n<example>\r\nUser: Run npm install for me and tell me what happens.\r\nAssistant: I'll run the npm install command for you.\r\n\r\n*Executes: npm install*\r\n\r\nThe command completed successfully. Here's the output:\r\n[Output of npm install command]\r\n\r\nAll dependencies have been installed according to your package.json file.\r\n\r\n<reasoning>\r\nThe assistant did not use the todo list because this is a single command execution with immediate results. There are no multiple steps to track or organize, making the todo list unnecessary for this straightforward task.\r\n</reasoning>\r\n</example>\r\n\r\n## Task States and Management\r\n\r\n1. **Task States**: Use these states to track progress:\r\n   - pending: Task not yet started\r\n   - in_progress: Currently working on (limit to ONE task at a time)\r\n   - completed: Task finished successfully\r\n   - cancelled: Task no longer needed\r\n\r\n2. **Task Management**:\r\n   - Update task status in real-time as you work\r\n   - Mark tasks complete IMMEDIATELY after finishing (don't batch completions)\r\n   - Only have ONE task in_progress at any time\r\n   - Complete current tasks before starting new ones\r\n   - Cancel tasks that become irrelevant\r\n\r\n3. **Task Breakdown**:\r\n   - Create specific, actionable items\r\n   - Break complex tasks into smaller, manageable steps\r\n   - Use clear, descriptive task names\r\n\r\nWhen in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.\r\n\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "todos": {
+                            "description": "The updated todo list",
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "content": {
+                                        "description": "Brief description of the task",
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "description": "Current status of the task: pending, in_progress, completed, cancelled",
+                                        "type": "string"
+                                    },
+                                    "priority": {
+                                        "description": "Priority level of the task: high, medium, low",
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "content",
+                                    "status",
+                                    "priority"
+                                ],
+                                "additionalProperties": false
+                            }
+                        }
+                    },
+                    "required": [
+                        "todos"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "websearch",
+                "description": "- Search the web using Exa AI - performs real-time web searches and can scrape content from specific URLs\r\n- Provides up-to-date information for current events and recent data\r\n- Supports configurable result counts and returns the content from the most relevant websites\r\n- Use this tool for accessing information beyond knowledge cutoff\r\n- Searches are performed automatically within a single API call\r\n\r\nUsage notes:\r\n  - Supports live crawling modes: 'fallback' (backup if cached unavailable) or 'preferred' (prioritize live crawling)\r\n  - Search types: 'auto' (balanced), 'fast' (quick results), 'deep' (comprehensive search)\r\n  - Configurable context length for optimal LLM integration\r\n  - Domain filtering and advanced search options available\r\n\r\nThe current year is 2026. You MUST use this year when searching for recent information or current events\r\n- Example: If the current year is 2026 and the user asks for \"latest AI news\", search for \"AI news 2026\", NOT \"AI news 2025\"\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "description": "Websearch query",
+                            "type": "string"
+                        },
+                        "numResults": {
+                            "description": "Number of search results to return (default: 8)",
+                            "type": "number"
+                        },
+                        "livecrawl": {
+                            "description": "Live crawl mode - 'fallback': use live crawling as backup if cached content unavailable, 'preferred': prioritize live crawling (default: 'fallback')",
+                            "type": "string",
+                            "enum": [
+                                "fallback",
+                                "preferred"
+                            ]
+                        },
+                        "type": {
+                            "description": "Search type - 'auto': balanced search (default), 'fast': quick results, 'deep': comprehensive search",
+                            "type": "string",
+                            "enum": [
+                                "auto",
+                                "fast",
+                                "deep"
+                            ]
+                        },
+                        "contextMaxCharacters": {
+                            "description": "Maximum characters for context string optimized for LLMs (default: 10000)",
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "codesearch",
+                "description": "- Search and get relevant context for any programming task using Exa Code API\r\n- Provides the highest quality and freshest context for libraries, SDKs, and APIs\r\n- Use this tool for ANY question or task related to programming\r\n- Returns comprehensive code examples, documentation, and API references\r\n- Optimized for finding specific programming patterns and solutions\r\n\r\nUsage notes:\r\n  - Adjustable token count (1000-50000) for focused or comprehensive results\r\n  - Default 5000 tokens provides balanced context for most queries\r\n  - Use lower values for specific questions, higher values for comprehensive documentation\r\n  - Supports queries about frameworks, libraries, APIs, and programming concepts\r\n  - Examples: 'React useState hook examples', 'Python pandas dataframe filtering', 'Express.js middleware'\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "description": "Search query to find relevant context for APIs, Libraries, and SDKs. For example, 'React useState hook examples', 'Python pandas dataframe filtering', 'Express.js middleware', 'Next js partial prerendering configuration'",
+                            "type": "string"
+                        },
+                        "tokensNum": {
+                            "description": "Number of tokens to return (1000-50000). Default is 5000 tokens. Adjust this value based on how much context you need - use lower values for focused queries and higher values for comprehensive documentation.",
+                            "default": 5000,
+                            "type": "number",
+                            "minimum": 1000,
+                            "maximum": 50000
+                        }
+                    },
+                    "required": [
+                        "query",
+                        "tokensNum"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "skill",
+                "description": "Load a specialized skill that provides domain-specific instructions and workflows. No skills are currently available.",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "description": "The name of the skill from available_skills",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "name"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            },
+            {
+                "type": "function",
+                "name": "apply_patch",
+                "description": "Use the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:\r\n\r\n*** Begin Patch\r\n[ one or more file sections ]\r\n*** End Patch\r\n\r\nWithin that envelope, you get a sequence of file operations.\r\nYou MUST include a header to specify the action you are taking.\r\nEach operation starts with one of three headers:\r\n\r\n*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).\r\n*** Delete File: <path> - remove an existing file. Nothing follows.\r\n*** Update File: <path> - patch an existing file in place (optionally with a rename).\r\n\r\nExample patch:\r\n\r\n```\r\n*** Begin Patch\r\n*** Add File: hello.txt\r\n+Hello world\r\n*** Update File: src/app.py\r\n*** Move to: src/main.py\r\n@@ def greet():\r\n-print(\"Hi\")\r\n+print(\"Hello, world!\")\r\n*** Delete File: obsolete.txt\r\n*** End Patch\r\n```\r\n\r\nIt is important to remember:\r\n\r\n- You must include a header with your intended action (Add/Delete/Update)\r\n- You must prefix new lines with `+` even when creating a new file\r\n",
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "patchText": {
+                            "description": "The full patch text that describes all changes to be made",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "patchText"
+                    ],
+                    "additionalProperties": false
+                },
+                "strict": false
+            }
+        ],
+        "tool_choice": "auto"
+    }
+}

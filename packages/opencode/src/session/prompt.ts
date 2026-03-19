@@ -201,7 +201,9 @@ export namespace SessionPrompt {
 
 
     const message = await createUserMessage(input)
-    await Session.touch(input.sessionID)
+      log.warn("[Web调试] 收到请求 prompt 开始 message = ",message)
+
+      await Session.touch(input.sessionID)
 
     /** 兼容：prompt 时传入的 tools 会合并进 session 权限 */
     const permissions: PermissionNext.Ruleset = []
@@ -321,6 +323,9 @@ export namespace SessionPrompt {
    * 退出时 resolve 等待中的 callbacks 并返回最后一条助手消息。
    */
   export const loop = fn(LoopInput, async (input) => {
+    // sessionID=ses_2fc3f17bcffePzRQ762XYyeqMy
+    log.warn("[Web调试] 收到请求 loop 开始",input)
+
     //input = sessionID
     const { sessionID, resume_existing } = input
 
@@ -351,6 +356,7 @@ export namespace SessionPrompt {
       // 每轮开头都会重新拉消息：MessageV2.filterCompacted(MessageV2.stream(sessionID))，用当前会话里的消息决定这一轮要干什么。
       // 按从新到旧遍历消息流，遇到 assistant 且 summary === true 且已正常结束 → 把这条 summary 的 parentID（即触发压缩的那条 user 的 id）记到 completed。
       let msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
+      log.warn("[Web调试] 收到请求 loop 开始, await MessageV2.filterCompacted msgs = ",msgs)
 
 
       // 作用是从消息列表中找到关键的状态信息，主要用于恢复对话上下文和处理未完成的任务
@@ -370,8 +376,15 @@ export namespace SessionPrompt {
       //   continueGeneration(lastUser, lastAssistant);
       // }
       /** 从后往前找：最后一条用户消息、最后一条助手消息、最后一条已结束的助手消息；并收集未处理的 compaction/subtask */
+      // lastUser = {"created":1773887826461} agent=build model={"providerID":"opencode","modelID":"gpt-5-nano"}
       let lastUser: MessageV2.User | undefined//获取用户最近一次输入，，确定AI需要回应的最新用户问题
+      // {"created":1773886065701,"completed":1773886078851}
+      // parentID=msg_d03d94be7001wi9aI0SamgfnjL modelID=gpt-5-nano providerID=opencode mode=build agent=build
+      // {"cwd":"D:\\WorkPlace\\Project\\Git\\agentscope-ai","root":"D:\\WorkPlace\\Project\\Git\\agentscope-ai"}
+      //  cost=0 tokens={"total":17592,"input":16219,"output":1373,"reasoning":1216,"cache":{"read":0,"write":0}}
+      //  finish=stop id=msg_d03d94c25001Nzj1WqcrCGJvhu sessionID=ses_2fc3f17bcffePzRQ762XYyeqMy
       let lastAssistant: MessageV2.Assistant | undefined//获取AI的最后一次回复,检查AI是否已经对用户的问题作出回应,用于继续生成回复（如果AI还没回复完）
+      // time={"created":1773886065701,"completed":1773886078851} parentID=msg_d03d94be7001wi9aI0SamgfnjL modelID=gpt-5-nano providerID=opencode mode=build agent=build path={"cwd":"D:\\WorkPlace\\Project\\Git\\agentscope-ai","root":"D:\\WorkPlace\\Project\\Git\\agentscope-ai"} cost=0 tokens={"total":17592,"input":16219,"output":1373,"reasoning":1216,"cache":{"read":0,"write":0}} finish=stop id=msg_d03d94c25001Nzj1WqcrCGJvhu sessionID=ses_2fc3f17bcffePzRQ762XYyeqMy
       let lastFinished: MessageV2.Assistant | undefined//区分"正在生成中"和"已完成"的消息,当重新进入对话时，知道从哪里开始继续生成
       let tasks: (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] = []
       for (let i = msgs.length - 1; i >= 0; i--) {
@@ -400,6 +413,12 @@ export namespace SessionPrompt {
         break
       }
 
+      log.warn("[Web调试] 收到请求 loop lastUser 开始",lastUser)
+      log.warn("[Web调试] 收到请求 loop lastAssistant 开始",lastAssistant)
+      log.warn("[Web调试] 收到请求 loop lastFinished 开始",lastFinished)
+      log.warn("[Web调试] 收到请求 loop tasks 开始",tasks)
+
+
       step++
       if (step === 1)
         ensureTitle({
@@ -426,6 +445,8 @@ export namespace SessionPrompt {
       /** 待执行的子任务：创建 Task 工具 part，TaskTool.execute 内部会再调 SessionPrompt.prompt */
       // 多数情况下主agent会根据任务需要自主调用TaskTool，此处调用是为了处理command模式、web端/其他客户端手动指定使用子agent，才会触发
       if (task?.type === "subtask") {
+        log.warn("[Web调试] 收到请求 loop subtask 开始",task)
+
         // 初始化任务工具
         const taskTool = await TaskTool.init()
         const taskModel = task.model ? await Provider.getModel(task.model.providerID, task.model.modelID) : model
@@ -605,6 +626,8 @@ export namespace SessionPrompt {
 
       /** 待执行的压缩任务：SessionCompaction.process 总结历史并写回 */
       if (task?.type === "compaction") {
+        log.warn("[Web调试] 收到请求 loop compaction 开始",task)
+
         // 处理压缩
         const result = await SessionCompaction.process({
           messages: msgs,
@@ -643,6 +666,8 @@ export namespace SessionPrompt {
         agent,
         session,
       })
+      log.warn("[Web调试] 收到请求 loop insertReminders 开始",msgs)
+
 
       // 典型的闭包用法：为一条助手消息创建 processor，最后需要用到process方法
       const processor = SessionProcessor.create({
@@ -692,6 +717,7 @@ export namespace SessionPrompt {
         bypassAgentCheck,
         messages: msgs,
       })
+      log.warn("[Web调试] 收到请求 loop tools 开始",tools)
 
       /** JSON schema 模式时注入 StructuredOutput 工具，回调写入 structuredOutput */
       if (lastUser.format?.type === "json_schema") {

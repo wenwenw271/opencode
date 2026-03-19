@@ -15,8 +15,11 @@ import { ProviderError } from "@/provider/error"
 import { iife } from "@/util/iife"
 import { type SystemError } from "bun"
 import type { Provider } from "@/provider/provider"
+import { Log } from "../util/log"
 
 export namespace MessageV2 {
+  const log = Log.create({ service: "session.MessageV2" })
+
   export function isMedia(mime: string) {
     return mime.startsWith("image/") || mime === "application/pdf"
   }
@@ -824,7 +827,12 @@ export namespace MessageV2 {
     const result = [] as MessageV2.WithParts[]
     const completed = new Set<string>()
     // 输入：异步可迭代的消息流（包含各种类型的消息片段）
+    // msg = info,parts
+    // msg = {"role":"user","time":{"created":1773887826461},"agent":"build","model":{"providerID":"opencode","modelID":"gpt-5-nano"},"id":"msg_d03f429a10011BZUEMH4DEnF1b","sessionID":"ses_2fc3f17bcffePzRQ762XYyeqMy"}
+    // parts = [{"type":"text","text":"你好","id":"prt_d03f429a4001miv2V1uVWVsIV3","sessionID":"ses_2fc3f17bcffePzRQ762XYyeqMy","messageID":"msg_d03f429a10011BZUEMH4DEnF1b"}]
     for await (const msg of stream) {
+      log.warn("[Web调试] 收到请求 filterCompacted 开始,msg = ",msg)
+
       result.push(msg)// 先收集所有消息
       // 条件1：遇到"用户消息" + 该消息已完成 + 包含压缩片段, 停止收集
       if (

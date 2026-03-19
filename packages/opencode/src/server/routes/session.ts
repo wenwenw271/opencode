@@ -826,11 +826,16 @@ export const SessionRoutes = lazy(() =>
       // // 异步调用 - 立即返回
       // SessionPrompt.prompt({ ...body, sessionID })
       async (c) => {
+        log.warn("[Web调试] 收到请求 prompt_async 开始")
         c.status(204)
         c.header("Content-Type", "application/json")
         return stream(c, async () => {
           const sessionID = c.req.valid("param").sessionID
           const body = c.req.valid("json")
+           // messageID=msg_d03f429a10011BZUEMH4DEnF1b model={"providerID":"opencode","modelID":"gpt-5-nano"} agent=build parts=[{"id":"prt_d03f429a4001miv2V1uVWVsIV3","type":"text","text":"你好"}] [Web调试] 收到请求 prompt_async 开始
+          console.log("body = ",body)
+          log.warn("[Web调试] 收到请求 prompt_async 开始",body)
+
           SessionPrompt.prompt({ ...body, sessionID })
         })
       },

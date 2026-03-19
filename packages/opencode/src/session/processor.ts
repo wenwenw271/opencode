@@ -76,6 +76,7 @@ export namespace SessionProcessor {
             const stream = await LLM.stream(streamInput)
 
             for await (const value of stream.fullStream) {
+              log.warn("[Web调试] 收到请求 loop stream.fullStream 开始",value)
               input.abort.throwIfAborted()
               switch (value.type) {
                 case "start":
